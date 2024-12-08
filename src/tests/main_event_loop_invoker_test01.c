@@ -45,14 +45,14 @@ int main(int a_argc, char* a_argv[])
 
     fprintf(stdout, "main thread tid: %d\n", cnMainThreadId);
 
-    for (i = 0; i < 30; ++i) {
-        CinternalSleepInterruptableMs(10000);
+    for (i = 0; i < 3; ++i) {
+        CinternalSleepInterruptableMs(3000);
         callArg = (void*)((size_t)rand());
         fprintf(stdout,"main thread (id:%d). Calling blocked finction with arg: %p\n", cnMainThreadId, callArg);
         fflush(stdout);
         pRet = EvLoopInvokerCallFuncionBlocked(invokerHandle, &BlockedTestFunction, callArg);
         fprintf(stdout, "main thread (id:%d). Blocked finction called. pRet: %p\n", cnMainThreadId, pRet);
-        CinternalSleepInterruptableMs(2000);
+        //CinternalSleepInterruptableMs(2000);
         callArg = (void*)((size_t)rand());
         fprintf(stdout, "main thread (id:%d). Calling async finction with arg: %p\n", cnMainThreadId, callArg);
         fflush(stdout);
