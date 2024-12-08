@@ -25,7 +25,7 @@ static void  AsyncTestFunction(void* a_pArg);
 
 int main(int a_argc, char* a_argv[])
 {
-    int i;
+    int i, iterCount=3, nSleep=2000;
     const int cnMainThreadId = (int)CinternalGetCurrentTid();
     time_t currentTime;
     void *callArg, *pRet;
@@ -43,16 +43,24 @@ int main(int a_argc, char* a_argv[])
     currentTime = time(&currentTime);
     srand((unsigned int)currentTime);
 
-    fprintf(stdout, "main thread tid: %d\n", cnMainThreadId);
+    if(a_argc>1){
+        iterCount = atoi(a_argv[1]);
+    }
 
-    for (i = 0; i < 3; ++i) {
-        CinternalSleepInterruptableMs(3000);
+    if(a_argc>2){
+        nSleep = atoi(a_argv[2]);
+    }
+
+    fprintf(stdout, "main thread tid: %d, iterCount=%d, nSleep=%d\n", cnMainThreadId,iterCount,nSleep);
+
+    for (i = 0; i < iterCount; ++i) {
+        CinternalSleepInterruptableMs(nSleep);
         callArg = (void*)((size_t)rand());
         fprintf(stdout,"main thread (id:%d). Calling blocked finction with arg: %p\n", cnMainThreadId, callArg);
         fflush(stdout);
         pRet = EvLoopInvokerCallFuncionBlocked(invokerHandle, &BlockedTestFunction, callArg);
         fprintf(stdout, "main thread (id:%d). Blocked finction called. pRet: %p\n", cnMainThreadId, pRet);
-        //CinternalSleepInterruptableMs(2000);
+        CinternalSleepInterruptableMs(nSleep);
         callArg = (void*)((size_t)rand());
         fprintf(stdout, "main thread (id:%d). Calling async finction with arg: %p\n", cnMainThreadId, callArg);
         fflush(stdout);
