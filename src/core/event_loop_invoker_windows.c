@@ -39,6 +39,7 @@ struct EvLoopInvokerHandle {
     HWND							        functionalWnd;
     DWORD							        dwGuiThreadId;
     ATOM                                    regClassReturn;
+    ATOM                                    reserved01;
     CPPUTILS_BISTATE_FLAGS_UN(
         shouldRun,
         hasError
@@ -49,7 +50,7 @@ static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) 
 static VOID NTAPI EvLoopInvokerUserApcClbk(_In_ ULONG_PTR a_arg) CPPUTILS_NOEXCEPT {(void)a_arg;}
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp)
+EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)calloc(1, sizeof(struct EvLoopInvokerHandle));
     if (!pRetStr) {
@@ -91,7 +92,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance)
+EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
 {
     if (a_instance) {
         a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
@@ -104,14 +105,14 @@ EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_in
 }
 
 
-EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData)
+EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
 {
     void* const pRet = (void*)SendMessageA(a_instance->functionalWnd, EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK, (WPARAM)a_fnc, (LPARAM)a_pData);
     return pRet;
 }
 
 
-EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData)
+EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
 {
     PostMessageA(a_instance->functionalWnd, EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK, (WPARAM)a_fnc, (LPARAM)a_pData);
 }
