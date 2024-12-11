@@ -19,8 +19,8 @@
 #include <time.h>
 
 
-static void* BlockedTestFunction(void* a_pArg);
-static void  AsyncTestFunction(void* a_pArg);
+static void* BlockedTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg);
+static void  AsyncTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg);
 
 
 int main(int a_argc, char* a_argv[])
@@ -73,15 +73,17 @@ int main(int a_argc, char* a_argv[])
 }
 
 
-static void* BlockedTestFunction(void* a_pArg)
+static void* BlockedTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
     void* const pRet = (void*)((size_t)rand());
+    (void)a_invokerHandle;
     fprintf(stdout, "Blocked caller threadId: %d, arg: %p, will return: %p\n", (int)CinternalGetCurrentTid(), a_pArg, pRet);
     return pRet;
 }
 
 
-static void  AsyncTestFunction(void* a_pArg)
+static void  AsyncTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
+    (void)a_invokerHandle;
     fprintf(stdout, "Async caller threadId: %d, arg: %p\n", (int)CinternalGetCurrentTid(), a_pArg);
 }
