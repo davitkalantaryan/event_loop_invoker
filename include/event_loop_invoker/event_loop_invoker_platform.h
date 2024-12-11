@@ -29,7 +29,7 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvoker
 #include <Windows.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-typedef bool (*EvLoopInvokerTypeEventMonitor)(void*, MSG*);
+typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN,void*, MSG*);
 EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData);
 
 #elif defined(__linux__) || defined(__linux)
@@ -38,7 +38,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 #include <xcb/xcb.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-typedef bool (*EvLoopInvokerTypeEventMonitor)(void*,xcb_generic_event_t*);
+typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN,void*,xcb_generic_event_t*);
 EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
 
 #elif defined(__APPLE__)

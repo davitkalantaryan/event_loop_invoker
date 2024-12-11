@@ -51,7 +51,7 @@ int main(int a_argc, char* a_argv[])
         return 1;
     }
 
-    CinternalSleepInterruptableMs(60000);
+    CinternalSleepInterruptableMs(2000);
 
     UnregisterMonitor(invokerHandle, pMonitor);
     EvLoopInvokerCleanHandle(invokerHandle);
@@ -65,9 +65,10 @@ static int s_nCreatorThreadId;
 
 #ifdef _WIN32
 
-static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
+static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pData, MSG* a_msg)
 {
     const int nCallerThreadId = (int)CinternalGetCurrentTid();
+    (void)a_invokerHandle;
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(wparam:%d, lparam:%d)\n", 
         s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, (int)a_msg->wParam, (int)a_msg->lParam);
     return false;
@@ -75,9 +76,10 @@ static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
 
 #elif defined(__linux__) || defined(__linux)
 
-static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
+static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle,void* a_pData, MSG* a_msg)
 {
     const int nCallerThreadId = (int)CinternalGetCurrentTid();
+    (void)a_invokerHandle;
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(wparam:%d, lparam:%d)\n",
         s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, (int)a_msg->wParam, (int)a_msg->lParam);
     return false;
@@ -86,9 +88,10 @@ static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
 
 #elif defined(__APPLE__)
 
-static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
+static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle,void* a_pData, MSG* a_msg)
 {
     const int nCallerThreadId = (int)CinternalGetCurrentTid();
+    (void)a_invokerHandle;
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(wparam:%d, lparam:%d)\n",
         s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, (int)a_msg->wParam, (int)a_msg->lParam);
     return false;
@@ -100,41 +103,33 @@ static bool EvLoopInvokerTestEventMonitor(void* a_pData, MSG* a_msg)
 #endif
 
 
-struct RegisterUnRegisterMonitorClbkStr {
-    struct EvLoopInvokerHandle*     invokerHandle;
-    void*                           clbkData;
-};
 
-
-static void* BlockedFunctionToRegisterMonitor(void* a_pArg)
+static void* BlockedFunctionToRegisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
     const struct RegisterUnRegisterMonitorClbkStr* const pData = (const struct RegisterUnRegisterMonitorClbkStr*)a_pArg;
-    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitor(pData->invokerHandle,&EvLoopInvokerTestEventMonitor, pData->clbkData);
+    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitor(a_invokerHandle,&EvLoopInvokerTestEventMonitor, a_pArg);
     s_nCreatorThreadId = (int)CinternalGetCurrentTid();
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d\n", s_nMainThreadId, s_nCreatorThreadId);
     return pMonitor;
 }
 
 
-static void* BlockedFunctionToUnregisterMonitor(void* a_pArg)
+static void* BlockedFunctionToUnregisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
-    const struct RegisterUnRegisterMonitorClbkStr* const pData = (const struct RegisterUnRegisterMonitorClbkStr*)a_pArg;
-    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)pData->clbkData;
-    EvLoopInvokerUnRegisterEventsMonitor(pData->invokerHandle, pMonitor);
+    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)a_pArg;
+    EvLoopInvokerUnRegisterEventsMonitor(a_invokerHandle, pMonitor);
     return CPPUTILS_NULL;
 }
 
 
 static struct EvLoopInvokerEventsMonitor* RegisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pData)
 {
-    struct RegisterUnRegisterMonitorClbkStr aData = { a_invokerHandle,a_pData};
-    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)EvLoopInvokerCallFuncionBlocked(a_invokerHandle, &BlockedFunctionToRegisterMonitor, &aData);
+    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)EvLoopInvokerCallFuncionBlocked(a_invokerHandle, &BlockedFunctionToRegisterMonitor, a_pData);
     return pMonitor;
 }
 
 
 static void UnregisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, struct EvLoopInvokerEventsMonitor* a_monitor)
 {
-    struct RegisterUnRegisterMonitorClbkStr aData = { a_invokerHandle,a_monitor };
-    EvLoopInvokerCallFuncionBlocked(a_invokerHandle, &BlockedFunctionToUnregisterMonitor, &aData);
+    EvLoopInvokerCallFuncionBlocked(a_invokerHandle, &BlockedFunctionToUnregisterMonitor, a_monitor);
 }

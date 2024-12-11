@@ -15,8 +15,8 @@
 CPPUTILS_BEGIN_C
 
 struct EvLoopInvokerHandle;
-typedef void* (*EvLoopInvokerBlockedClbk)(void*);
-typedef void (*EvLoopInvokerAsyncClbk)(void*);
+typedef void* (*EvLoopInvokerBlockedClbk)(struct EvLoopInvokerHandle*CPPUTILS_ARG_NN,void*);
+typedef void (*EvLoopInvokerAsyncClbk)(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN,void*);
 
 
 #define EvLoopInvokerCreateHandle()     EvLoopInvokerCreateHandleEx(CPPUTILS_NULL)

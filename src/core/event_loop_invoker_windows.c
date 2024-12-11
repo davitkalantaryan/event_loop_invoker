@@ -17,6 +17,7 @@
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <assert.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
 
@@ -55,11 +56,11 @@ static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) 
 static VOID NTAPI EvLoopInvokerUserApcClbk(_In_ ULONG_PTR a_arg) CPPUTILS_NOEXCEPT {(void)a_arg;}
 
 
-static inline bool EvLoopInvokerCallAllMonitorsInline(const struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, MSG* CPPUTILS_ARG_NN a_event) {
+static inline bool EvLoopInvokerCallAllMonitorsInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, MSG* CPPUTILS_ARG_NN a_event) {
     struct EvLoopInvokerEventsMonitor* pMonitorNext, * pMonitor = a_instance->pFirstMonitor;
     while (pMonitor) {
         pMonitorNext = pMonitor->next;
-        if ((*(pMonitor->clbk))(pMonitor->clbkData, a_event)) {
+        if ((*(pMonitor->clbk))(a_instance,pMonitor->clbkData, a_event)) {
             return true;
         }
         pMonitor = pMonitorNext;
@@ -169,7 +170,7 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvoker
         else {
             a_instance->pFirstMonitor = a_eventsMonitor->next;
         }
-        free(a_instance);
+        free(a_eventsMonitor);
     }  //  if(a_eventsMonitor){
 }
 
@@ -237,7 +238,7 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
     regClassData.style = 0;
     regClassData.lpfnWndProc = &EventLoopInvokerWndPproc;
     regClassData.cbClsExtra = 0;
-    regClassData.cbWndExtra = 0;
+    regClassData.cbWndExtra = (int)sizeof(struct EvLoopInvokerHandle*);
     regClassData.hInstance = a_instance->hInstance;
     regClassData.hIcon = CPPUTILS_NULL;
     regClassData.hCursor = CPPUTILS_NULL;
@@ -269,6 +270,15 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
         return 1;
     }
 
+    SetLastError(0);
+    if (!SetWindowLongPtrA(a_instance->functionalWnd, 0, (LONG_PTR)a_instance)) {
+        const DWORD dwLastError = GetLastError();
+        if (dwLastError != ERROR_SUCCESS) {
+            CInternalLogError("Adding window specific data failed");
+            return 1;
+        }
+    }
+
     a_instance->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
     return 0;
 }
@@ -276,17 +286,19 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
 
 static LRESULT CALLBACK EventLoopInvokerWndPproc(HWND a_hWnd, UINT a_msgNumber, WPARAM a_wParam, LPARAM a_lParam) CPPUTILS_NOEXCEPT
 {
+    struct EvLoopInvokerHandle* const pInstance = (struct EvLoopInvokerHandle*)GetWindowLongPtrA(a_hWnd, 0);
+
     switch (a_msgNumber) {
     case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK: {
         const EvLoopInvokerBlockedClbk blockedClbk = (EvLoopInvokerBlockedClbk)a_wParam;
         void* const pArg = (void*)a_lParam;
-        void* const pRet = (*blockedClbk)(pArg);
+        void* const pRet = (*blockedClbk)(pInstance,pArg);
         return (LRESULT)pRet;
     }break;
     case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK: {
         const EvLoopInvokerAsyncClbk asyncClbk = (EvLoopInvokerAsyncClbk)a_wParam;
         void* const pArg = (void*)a_lParam;
-        (*asyncClbk)(pArg);
+        (*asyncClbk)(pInstance,pArg);
         return (LRESULT)0;
     }break;
     default:

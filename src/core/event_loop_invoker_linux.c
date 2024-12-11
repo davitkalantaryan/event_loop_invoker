@@ -88,11 +88,11 @@ static inline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_
 }
 
 
-static inline bool EvLoopInvokerCallAllMonitorsInline(const struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, xcb_generic_event_t* CPPUTILS_ARG_NN a_event){
+static inline bool EvLoopInvokerCallAllMonitorsInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, xcb_generic_event_t* CPPUTILS_ARG_NN a_event){
     struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
     while(pMonitor){
         pMonitorNext = pMonitor->next;
-        if((*(pMonitor->clbk))(pMonitor->clbkData,a_event)){
+        if((*(pMonitor->clbk))(a_instance,pMonitor->clbkData,a_event)){
             return true;
         }
         pMonitor = pMonitorNext;
@@ -293,7 +293,7 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvoker
         else{
             a_instance->pFirstMonitor = a_eventsMonitor->next;
         }
-        free(a_instance);
+        free(a_eventsMonitor);
     }  //  if(a_eventsMonitor){
 }
 
@@ -343,12 +343,12 @@ static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTI
                 pCalldata = (struct EvLoopInvokerCallData*)(&(clntMsg_p->data));
                 switch(pCalldata->type){
                 case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK:
-                    pRet = (*(pCalldata->blockedCall_p->fnc))(pCalldata->blockedCall_p->pInOut);
+                    pRet = (*(pCalldata->blockedCall_p->fnc))(a_instance,pCalldata->blockedCall_p->pInOut);
                     pCalldata->blockedCall_p->pInOut = pRet;
                     sem_post( &(pCalldata->blockedCall_p->sema) );
                     break;
                 case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK:
-                    (*(pCalldata->asyncCall.fnc))(pCalldata->asyncCall.pIn);
+                    (*(pCalldata->asyncCall.fnc))(a_instance,pCalldata->asyncCall.pIn);
                     break;
                 default:
                     break;
