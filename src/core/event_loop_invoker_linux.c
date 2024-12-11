@@ -15,7 +15,7 @@
 #define cinternal_gettid_needed
 #endif
 
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_platform.h>
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <cinternal/gettid.h>
@@ -55,6 +55,13 @@ struct EvLoopInvokerCallData{
 };
 
 
+struct EvLoopInvokerEventsMonitor{
+    struct EvLoopInvokerEventsMonitor *prev, *next;
+    EvLoopInvokerTypeEventMonitor   clbk;
+    void*                           clbkData;
+};
+
+
 struct EvLoopInvokerHandle{
     char*                               displayName;
     pthread_t                           monitor_thread;
@@ -63,6 +70,7 @@ struct EvLoopInvokerHandle{
     xcb_connection_t*                   connection;
     xcb_screen_t*                       default_screen;
     xcb_window_t                        msg_window;
+    struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
     
     CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError, semaCreated)flags;
 };
@@ -77,6 +85,41 @@ static inline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_
     }
     free(a_instance->displayName);
     free(a_instance);
+}
+
+
+static inline bool EvLoopInvokerCallAllMonitorsInline(const struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, xcb_generic_event_t* CPPUTILS_ARG_NN a_event){
+    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
+    while(pMonitor){
+        pMonitorNext = pMonitor->next;
+        if((*(pMonitor->clbk))(pMonitor->clbkData,a_event)){
+            return true;
+        }
+        pMonitor = pMonitorNext;
+    }  //  while(pMonitor){
+    return false;
+}
+
+
+static inline void EventLoopInvokerCleanInstanceInEventLoopInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
+{
+    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
+    while(pMonitor){
+        pMonitorNext = pMonitor->next;
+        free(pMonitor);
+        pMonitor = pMonitorNext;
+    }  //  while(pMonitor){
+    a_instance->pFirstMonitor = CPPUTILS_NULL;
+    
+    if(a_instance->msg_window){
+        xcb_destroy_window(a_instance->connection, a_instance->msg_window);
+        a_instance->msg_window = 0;
+    }
+    
+    if(a_instance->connection){
+        xcb_disconnect(a_instance->connection);
+        a_instance->connection = CPPUTILS_NULL;
+    }
 }
 
 
@@ -211,11 +254,54 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 }
 
 
+/*/// platform specific api  ///*/
+EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
+{
+    return a_instance->connection;
+}
+
+
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+{
+    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1,sizeof(struct EvLoopInvokerEventsMonitor));
+    if(!pMonitor){
+        return CPPUTILS_NULL;
+    }
+    
+    pMonitor->clbk = a_fnc;
+    pMonitor->clbkData = a_clbkData;
+    pMonitor->prev = CPPUTILS_NULL;
+    pMonitor->next = a_instance->pFirstMonitor;
+    if(a_instance->pFirstMonitor){
+        a_instance->pFirstMonitor->prev = pMonitor;
+    }
+    a_instance->pFirstMonitor = pMonitor;
+    return pMonitor;
+}
+
+
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+{
+    if(a_eventsMonitor){
+        if(a_eventsMonitor->next){
+            a_eventsMonitor->next->prev = a_eventsMonitor->prev;
+        }
+        if(a_eventsMonitor->prev){
+            a_eventsMonitor->prev->next = a_eventsMonitor->next;
+        }
+        else{
+            a_instance->pFirstMonitor = a_eventsMonitor->next;
+        }
+        free(a_instance);
+    }  //  if(a_eventsMonitor){
+}
+
+
 /*///////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 static int EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
 static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
-static void EventLoopInvokerCleanInstanceInEventLoopInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
+
 
 static void* EventLoopInvokerCallbacksThread(void* a_pData)
 {
@@ -249,36 +335,32 @@ static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTI
     while ( a_instance->flags.rd.shouldRun_true ) {
         event = xcb_wait_for_event(a_instance->connection);
         
-        switch (event->response_type & ~0x80) {
-        case XCB_CLIENT_MESSAGE:
-            clntMsg_p = (xcb_client_message_event_t *)event;
-            pCalldata = (struct EvLoopInvokerCallData*)(&(clntMsg_p->data));
-            switch(pCalldata->type){
-            case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK:
-                pRet = (*(pCalldata->blockedCall_p->fnc))(pCalldata->blockedCall_p->pInOut);
-                pCalldata->blockedCall_p->pInOut = pRet;
-                sem_post( &(pCalldata->blockedCall_p->sema) );
-                break;
-            case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK:
-                (*(pCalldata->asyncCall.fnc))(pCalldata->asyncCall.pIn);
+        if(!EvLoopInvokerCallAllMonitorsInline(a_instance,event)){
+            switch (event->response_type & ~0x80) {
+            case XCB_CLIENT_MESSAGE:
+                clntMsg_p = (xcb_client_message_event_t *)event;
+                pCalldata = (struct EvLoopInvokerCallData*)(&(clntMsg_p->data));
+                switch(pCalldata->type){
+                case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK:
+                    pRet = (*(pCalldata->blockedCall_p->fnc))(pCalldata->blockedCall_p->pInOut);
+                    pCalldata->blockedCall_p->pInOut = pRet;
+                    sem_post( &(pCalldata->blockedCall_p->sema) );
+                    break;
+                case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK:
+                    (*(pCalldata->asyncCall.fnc))(pCalldata->asyncCall.pIn);
+                    break;
+                default:
+                    break;
+                }  //  switch(clntMsg->data.data8[0]){
                 break;
             default:
                 break;
-            }  //  switch(clntMsg->data.data8[0]){
-            break;
-        default:
-            break;
-        }  //  switch (event->response_type & ~0x80) {        
-        
+            }  //  switch (event->response_type & ~0x80) {
+        }
+                
         free(event);
         
     }  //  while ( a_instance->flags.rd.shouldRun_true ) {
-}
-
-
-static void EventLoopInvokerCleanInstanceInEventLoopInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
-{
-    (void)a_instance;
 }
 
 
@@ -320,6 +402,7 @@ static int EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* C
     a_instance->connection = xcb_connect( a_instance->displayName, &(a_instance->screen_default_nbr));
     if (xcb_connection_has_error(a_instance->connection)){
         xcb_disconnect(a_instance->connection);
+        a_instance->connection = CPPUTILS_NULL;
         CInternalLogError(" xcb_connection_has_error ");
         return 1;
     }
@@ -327,11 +410,19 @@ static int EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* C
     a_instance->default_screen = screen_of_display (a_instance->connection, a_instance->screen_default_nbr);
     if(!(a_instance->default_screen)){
         xcb_disconnect(a_instance->connection);
+        a_instance->connection = CPPUTILS_NULL;
         CInternalLogError(" No root screen ");
         return 1;
     }
     
-    a_instance->msg_window = create_message_window(a_instance->connection,a_instance->default_screen);    
+    a_instance->msg_window = create_message_window(a_instance->connection,a_instance->default_screen);
+    if(!a_instance->msg_window){
+        EventLoopInvokerCleanInstanceInEventLoopInline(a_instance);
+        return 1;
+    }
+    
+    a_instance->pFirstMonitor = CPPUTILS_NULL;
+    
     return 0;
 }
 

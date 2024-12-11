@@ -11,6 +11,7 @@
 #endif
 
 #include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_platform.h>
 #include <cinternal/signals.h>
 #include <cinternal/gettid.h>
 #include <stdio.h>

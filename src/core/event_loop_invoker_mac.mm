@@ -9,7 +9,7 @@
 #include <cinternal/internal_header.h>
 
 
-#ifdef CPPUTILS_OS_MACOS
+#ifdef __APPLE__
 
 
 #include <event_loop_invoker/event_loop_invoker.h>
@@ -100,4 +100,4 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 CPPUTILS_END_C
 
 
-#endif  //  #ifdef CPPUTILS_OS_MACOS
+#endif  //  #ifdef __APPLE__
