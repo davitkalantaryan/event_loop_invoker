@@ -10,14 +10,10 @@
 #define EVLOOPINVK_INCLUDE_EVLOOPINVK_EVENT_LOOP_INVOKER_PLATFORM_H
 
 #include <event_loop_invoker/event_loop_invoker.h>
-#include <cinternal/disable_compiler_warnings.h>
-#include <stdbool.h>
-#include <cinternal/undisable_compiler_warnings.h>
 
 
 CPPUTILS_BEGIN_C
 
-struct EvLoopInvokerEventsMonitor;
 
 #ifdef _WIN32
 
@@ -27,7 +23,7 @@ struct EvLoopInvokerEventsMonitor;
 #include <Windows.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN,void*, MSG*);
+#define EvLoopInvokerPtrToMsg(_ptr)     ((MSG*)(_ptr))
 
 #elif defined(__linux__) || defined(__linux)
 
@@ -35,16 +31,19 @@ typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTI
 #include <xcb/xcb.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN,void*,xcb_generic_event_t*);
+#define EvLoopInvokerPtrToMsg(_ptr)     ((xcb_generic_event_t*)(_ptr))
 EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
 
 #elif defined(__APPLE__)
+
+#ifdef __OBJC__
+#import <AppKit/NSEvent.h>
+#endif
+#define EvLoopInvokerPtrToMsg(_ptr)     ((NSEvent*)(_ptr))
+
 #else
 # platform is not supported
 #endif
-
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData);
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor);
 
 
 CPPUTILS_END_C

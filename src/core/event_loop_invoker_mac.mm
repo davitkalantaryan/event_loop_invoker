@@ -12,7 +12,7 @@
 #ifdef __APPLE__
 
 
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_platform.h>
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <stdlib.h>
@@ -21,11 +21,61 @@
 
 CPPUTILS_BEGIN_C
 
+struct EvLoopInvokerEventsMonitor{
+    struct EvLoopInvokerEventsMonitor *prev, *next;
+    EvLoopInvokerTypeEventMonitor   clbk;
+    void*                           clbkData;
+};
+
 
 struct EvLoopInvokerHandle{
     NSOperationQueue*                   operationQueue;
+    struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
+    id                                  eventMonitor;
     CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError)flags;
 };
+
+static inline void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData);
+
+
+static inline bool EvLoopInvokerCallAllMonitorsInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, NSEvent* CPPUTILS_ARG_NN a_event){
+    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
+    while(pMonitor){
+        pMonitorNext = pMonitor->next;
+        if((*(pMonitor->clbk))(a_instance,pMonitor->clbkData,a_event)){
+            return true;
+        }
+        pMonitor = pMonitorNext;
+    }  //  while(pMonitor){
+    return false;
+}
+
+
+static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
+    if(a_instance->eventMonitor){
+        return 0;
+    }
+
+    a_instance->eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:NSEventMaskAny
+        handler:^(NSEvent* a_event){
+            EvLoopInvokerCallAllMonitorsInline(a_instance,a_event);
+        }];
+    if(a_instance->eventMonitor){
+        return 0;
+    }
+    return 1;
+}
+
+
+static inline void RemoveEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
+    if(a_instance->eventMonitor){
+        if(a_instance->pFirstMonitor){
+            return;
+        }
+        [NSEvent removeMonitor: a_instance->eventMonitor];
+        a_instance->eventMonitor = CPPUTILS_NULL;
+    }
+}
 
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
@@ -63,7 +113,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_i
 {
     if(a_instance){
         a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-        //AppAndBrowsMonRunClbkOnGuiThreadInline(a_instance,a_instance,&ClbkForDataCleaning);
+        EvLoopInvokerCallFuncionBlocked(a_instance,&EventLoopInvokerCleanInstanceInEventLoop,CPPUTILS_NULL);
         [a_instance->operationQueue release];
         free(a_instance);
     }
@@ -76,9 +126,11 @@ EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHand
 
     {
         __block struct EvLoopInvokerHandle* const pRetStr = a_instance;
+        __block const EvLoopInvokerBlockedClbk fnc = a_fnc;
+        __block void* const pData = a_pData;
         __block void**const ppReturn = &pReturn;
         NSBlockOperation *operation1 = [NSBlockOperation blockOperationWithBlock:^{
-            *ppReturn = (*a_fnc)(a_pData);
+            *ppReturn = (*fnc)(pRetStr,pData);
         }];
         [pRetStr->operationQueue addOperations:@[operation1] waitUntilFinished:YES];
     }
@@ -90,10 +142,72 @@ EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHand
 EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
 {
     __block struct EvLoopInvokerHandle* const pRetStr = a_instance;
+    __block const EvLoopInvokerAsyncClbk fnc = a_fnc;
+    __block void* const pData = a_pData;
     NSBlockOperation *operation1 = [NSBlockOperation blockOperationWithBlock:^{
-        (*a_fnc)(a_pData);
+        (*fnc)(pRetStr,pData);
     }];
     [pRetStr->operationQueue addOperations:@[operation1] waitUntilFinished:NO];
+}
+
+
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+{
+    if(CreateEventMonitorIfNeededInline(a_instance)){
+        return CPPUTILS_NULL;
+    }
+
+    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1,sizeof(struct EvLoopInvokerEventsMonitor));
+    if(!pMonitor){
+        return CPPUTILS_NULL;
+    }
+
+    pMonitor->clbk = a_fnc;
+    pMonitor->clbkData = a_clbkData;
+    pMonitor->prev = CPPUTILS_NULL;
+    pMonitor->next = a_instance->pFirstMonitor;
+    if(a_instance->pFirstMonitor){
+        a_instance->pFirstMonitor->prev = pMonitor;
+    }
+    a_instance->pFirstMonitor = pMonitor;
+    return pMonitor;
+}
+
+
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+{
+    if(a_eventsMonitor){
+        if(a_eventsMonitor->next){
+            a_eventsMonitor->next->prev = a_eventsMonitor->prev;
+        }
+        if(a_eventsMonitor->prev){
+            a_eventsMonitor->prev->next = a_eventsMonitor->next;
+        }
+        else{
+            a_instance->pFirstMonitor = a_eventsMonitor->next;
+        }
+        free(a_eventsMonitor);
+        RemoveEventMonitorIfNeededInline(a_instance);
+    }  //  if(a_eventsMonitor){
+}
+
+
+/*/////////////////////////////////////////////////////////////////////////////////*/
+
+static inline void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData)
+{
+    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
+    while(pMonitor){
+        pMonitorNext = pMonitor->next;
+        free(pMonitor);
+        pMonitor = pMonitorNext;
+    }  //  while(pMonitor){
+    a_instance->pFirstMonitor = CPPUTILS_NULL;
+
+    RemoveEventMonitorIfNeededInline(a_instance);
+
+    CPPUTILS_STATIC_CAST(void,a_pData);
+    return CPPUTILS_NULL;
 }
 
 
