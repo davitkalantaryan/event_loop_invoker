@@ -38,6 +38,7 @@ struct EvLoopInvokerEventsMonitor {
 
 
 struct EvLoopInvokerHandle {
+    struct EvLoopInvokerEventsMonitor*      pFirstMonitor;
     HANDLE							        waitGuiThreadSema;
     HANDLE							        guiThread;
     HINSTANCE						        hInstance;
@@ -45,7 +46,7 @@ struct EvLoopInvokerHandle {
     DWORD							        dwGuiThreadId;
     ATOM                                    regClassReturn;
     ATOM                                    reserved01;
-    struct EvLoopInvokerEventsMonitor*      pFirstMonitor;
+    void*                                   reserved02;
     CPPUTILS_BISTATE_FLAGS_UN(
         shouldRun,
         hasError
