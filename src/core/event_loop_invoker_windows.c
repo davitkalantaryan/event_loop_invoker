@@ -157,6 +157,23 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 }
 
 
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+{
+    if (a_eventsMonitor) {
+        if (a_eventsMonitor->next) {
+            a_eventsMonitor->next->prev = a_eventsMonitor->prev;
+        }
+        if (a_eventsMonitor->prev) {
+            a_eventsMonitor->prev->next = a_eventsMonitor->next;
+        }
+        else {
+            a_instance->pFirstMonitor = a_eventsMonitor->next;
+        }
+        free(a_instance);
+    }  //  if(a_eventsMonitor){
+}
+
+
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;

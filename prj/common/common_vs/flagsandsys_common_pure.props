@@ -20,6 +20,10 @@ $(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
 $(LocalDebuggerEnvironment)</LocalDebuggerEnvironment>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
+  <PropertyGroup>
+    <OutDir>$(EventLoopInvokerVirtProjectDir)..\..\..\sys\win_$(PlatformTarget)\$(Configuration)\any\</OutDir>
+    <IntDir>$(EventLoopInvokerVirtProjectDir)..\..\..\sys\win_$(PlatformTarget)\$(Configuration)\.other\objects\$(ProjectName)\</IntDir>
+  </PropertyGroup>
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
     <eventLoopInvokerRepoRoot>$(MSBuildThisFileDirectory)..\..\..</eventLoopInvokerRepoRoot>
