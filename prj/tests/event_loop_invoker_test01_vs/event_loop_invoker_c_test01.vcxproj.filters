@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="files">
+      <UniqueIdentifier>{98bbde08-738c-4f44-83bc-1553b3e84d3c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\tests\main_event_loop_invoker_test01.c">
@@ -22,6 +25,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\contrib\cinternal\src\core\cinternal_core_logger.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_linux.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,5 +41,13 @@
     <ClInclude Include="..\..\..\contrib\cinternal\include\cinternal\signals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker_platform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\src\core\event_loop_invoker_mac.mm">
+      <Filter>files</Filter>
+    </None>
   </ItemGroup>
 </Project>

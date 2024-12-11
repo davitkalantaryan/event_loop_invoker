@@ -255,6 +255,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 
 
 /*/// platform specific api  ///*/
+
 EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
 {
     return a_instance->connection;

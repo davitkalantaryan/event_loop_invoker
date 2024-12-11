@@ -11,15 +11,12 @@
 
 #ifdef _WIN32
 
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_platform.h>
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <malloc.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#include <Windows.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
 
@@ -32,6 +29,13 @@ CPPUTILS_BEGIN_C
 #define EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK		(WM_USER + 3)
 
 
+struct EvLoopInvokerEventsMonitor {
+    struct EvLoopInvokerEventsMonitor* prev, * next;
+    EvLoopInvokerTypeEventMonitor   clbk;
+    void* clbkData;
+};
+
+
 struct EvLoopInvokerHandle {
     HANDLE							        waitGuiThreadSema;
     HANDLE							        guiThread;
@@ -40,6 +44,7 @@ struct EvLoopInvokerHandle {
     DWORD							        dwGuiThreadId;
     ATOM                                    regClassReturn;
     ATOM                                    reserved01;
+    struct EvLoopInvokerEventsMonitor*      pFirstMonitor;
     CPPUTILS_BISTATE_FLAGS_UN(
         shouldRun,
         hasError
@@ -48,6 +53,19 @@ struct EvLoopInvokerHandle {
 
 static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) CPPUTILS_NOEXCEPT;
 static VOID NTAPI EvLoopInvokerUserApcClbk(_In_ ULONG_PTR a_arg) CPPUTILS_NOEXCEPT {(void)a_arg;}
+
+
+static inline bool EvLoopInvokerCallAllMonitorsInline(const struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, MSG* CPPUTILS_ARG_NN a_event) {
+    struct EvLoopInvokerEventsMonitor* pMonitorNext, * pMonitor = a_instance->pFirstMonitor;
+    while (pMonitor) {
+        pMonitorNext = pMonitor->next;
+        if ((*(pMonitor->clbk))(pMonitor->clbkData, a_event)) {
+            return true;
+        }
+        pMonitor = pMonitorNext;
+    }  //  while(pMonitor){
+    return false;
+}
 
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
@@ -118,6 +136,26 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 }
 
 
+/*/// platform specific api  ///*/
+
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+{
+    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1, sizeof(struct EvLoopInvokerEventsMonitor));
+    if (!pMonitor) {
+        return CPPUTILS_NULL;
+    }
+
+    pMonitor->clbk = a_fnc;
+    pMonitor->clbkData = a_clbkData;
+    pMonitor->prev = CPPUTILS_NULL;
+    pMonitor->next = a_instance->pFirstMonitor;
+    if (a_instance->pFirstMonitor) {
+        a_instance->pFirstMonitor->prev = pMonitor;
+    }
+    a_instance->pFirstMonitor = pMonitor;
+    return pMonitor;
+}
+
 
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
@@ -142,7 +180,9 @@ static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) 
 
     while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
         TranslateMessage(&msg);
-        DispatchMessageA(&msg);
+        if (!EvLoopInvokerCallAllMonitorsInline(pRetStr, &msg)) {
+            DispatchMessageA(&msg);
+        }
     }
 
     EventLoopInvokerClearInstanceFromEventLoop(pRetStr);

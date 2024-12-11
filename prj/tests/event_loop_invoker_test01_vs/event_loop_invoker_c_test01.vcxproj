@@ -293,13 +293,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\contrib\cinternal\src\core\cinternal_core_logger.c" />
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_linux.c" />
     <ClCompile Include="..\..\..\src\core\event_loop_invoker_windows.c" />
     <ClCompile Include="..\..\..\src\tests\main_event_loop_invoker_test01.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\contrib\cinternal\include\cinternal\signals.h" />
     <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker.h" />
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker_platform.h" />
     <ClInclude Include="..\..\..\include\event_loop_invoker\export_symbols.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\src\core\event_loop_invoker_mac.mm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

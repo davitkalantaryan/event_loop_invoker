@@ -18,9 +18,20 @@
 CPPUTILS_BEGIN_C
 
 struct EvLoopInvokerEventsMonitor;
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor);
 
 
-#ifdef _WIN32 
+#ifdef _WIN32
+
+#include <cinternal/disable_compiler_warnings.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <Windows.h>
+#include <cinternal/undisable_compiler_warnings.h>
+
+typedef bool (*EvLoopInvokerTypeEventMonitor)(void*, MSG*);
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData);
+
 #elif defined(__linux__) || defined(__linux)
 
 #include <cinternal/disable_compiler_warnings.h>
@@ -28,10 +39,7 @@ struct EvLoopInvokerEventsMonitor;
 #include <cinternal/undisable_compiler_warnings.h>
 
 typedef bool (*EvLoopInvokerTypeEventMonitor)(void*,xcb_generic_event_t*);
-
 EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData);
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor);
 
 #elif defined(__APPLE__)
 #else
