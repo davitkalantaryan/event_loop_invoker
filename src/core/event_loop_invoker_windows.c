@@ -12,6 +12,7 @@
 #ifdef _WIN32
 
 #include <event_loop_invoker/event_loop_invoker_platform.h>
+#include <event_loop_invoker/event_loop_invoker.h>
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <cinternal/disable_compiler_warnings.h>
