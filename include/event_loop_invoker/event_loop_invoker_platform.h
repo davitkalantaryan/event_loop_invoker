@@ -36,7 +36,7 @@ CPPUTILS_BEGIN_C
 #define EvLoopInvokerPtrToRequestCode(_ptr) ( (int)(EvLoopInvokerPtrToMsg(_ptr)->response_type) )
 #ifdef EvLoopInvoker_platform_specific_functions_needed
 struct EvLoopInvokerHandle;
-EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
+EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnectionEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
 #endif
 
 #elif defined(__APPLE__)
