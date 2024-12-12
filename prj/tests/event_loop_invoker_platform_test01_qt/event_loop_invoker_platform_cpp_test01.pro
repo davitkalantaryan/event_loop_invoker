@@ -9,4 +9,7 @@
 message("!!! $${_PRO_FILE_}")
 include ( "$${PWD}/event_loop_invoker_platform_cmn_test01.pri" )
 
-QMAKE_CXXFLAGS += $$cinternalFlagsToCompileAsCpp()
+mac {
+} else {
+    QMAKE_CXXFLAGS += $$cinternalFlagsToCompileAsCpp()
+}
