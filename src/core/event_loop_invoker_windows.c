@@ -197,12 +197,19 @@ static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) 
 
     ReleaseSemaphore(pRetStr->waitGuiThreadSema, 1, CPPUTILS_NULL);
 
-    while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        if (!EvLoopInvokerCallAllMonitorsInline(pRetStr, &msg)) {
-            DispatchMessageA(&msg);
+    while (pRetStr->flags.rd.shouldRun_true) {
+
+        CPPUTILS_TRY{
+            while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+                TranslateMessage(&msg);
+                if (!EvLoopInvokerCallAllMonitorsInline(pRetStr, &msg)) {
+                    DispatchMessageA(&msg);
+                }
+            }  //  while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+        } CPPUTILS_CATCH() {
         }
-    }
+
+    }  //  while (pRetStr->flags.rd.shouldRun_true) {
 
     EventLoopInvokerClearInstanceFromEventLoop(pRetStr);
 
