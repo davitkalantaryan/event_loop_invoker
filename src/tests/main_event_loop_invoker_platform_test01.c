@@ -9,8 +9,12 @@
 #ifndef cinternal_gettid_needed
 #define cinternal_gettid_needed
 #endif
+#ifndef EvLoopInvoker_platform_specific_functions_needed
+#define EvLoopInvoker_platform_specific_functions_needed
+#endif
 
 #include <event_loop_invoker/event_loop_invoker_platform.h>
+#include <event_loop_invoker/event_loop_invoker.h>
 #include <cinternal/signals.h>
 #include <cinternal/gettid.h>
 #include <cinternal/signals.h>
@@ -62,39 +66,10 @@ int main(int a_argc, char* a_argv[])
 
 static int s_nCreatorThreadId;
 
-CPPUTILS_BEGIN_C
-
-#ifdef _WIN32
-
-static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pData, MSG* a_msg)
-{
-    const int nCallerThreadId = (int)CinternalGetCurrentTid();
-    (void)a_invokerHandle;
-    fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(wparam:%d, lparam:%d)\n", 
-        s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, (int)a_msg->wParam, (int)a_msg->lParam);
-    return false;
-}
-
-#elif defined(__linux__) || defined(__linux)
-
-static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle,void* a_pData, xcb_generic_event_t* a_msg)
-{
-    const int nCallerThreadId = (int)CinternalGetCurrentTid();
-    (void)a_invokerHandle;
-    fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(response_type:%d)\n",
-        s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, (int)a_msg->response_type);
-    return false;
-}
-
-
-#elif defined(__APPLE__)
-
-CPPUTILS_DLL_PRIVATE int EvLoopInvokerTestEventMonitorMac(void* a_msg);
-
 static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle,void* a_pData, void* a_msg)
 {
     const int nCallerThreadId = (int)CinternalGetCurrentTid();
-    const int evType = EvLoopInvokerTestEventMonitorMac(a_msg);
+    const int evType = EvLoopInvokerPtrToRequestCode(a_msg);
     (void)a_invokerHandle;
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d, callerThreadId = %d => data:%p, msg(type:%d)\n",
         s_nMainThreadId, s_nCreatorThreadId, nCallerThreadId, a_pData, evType);
@@ -102,16 +77,9 @@ static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_A
 }
 
 
-#else
-# platform is not supported
-#endif
-
-CPPUTILS_END_C
-
-
 static void* BlockedFunctionToRegisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
-    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitor(a_invokerHandle,&EvLoopInvokerTestEventMonitor, a_pArg);
+    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitorEvLoopThread(a_invokerHandle,&EvLoopInvokerTestEventMonitor, a_pArg);
     s_nCreatorThreadId = (int)CinternalGetCurrentTid();
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d\n", s_nMainThreadId, s_nCreatorThreadId);
     return pMonitor;
@@ -121,7 +89,7 @@ static void* BlockedFunctionToRegisterMonitor(struct EvLoopInvokerHandle* CPPUTI
 static void* BlockedFunctionToUnregisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
     struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)a_pArg;
-    EvLoopInvokerUnRegisterEventsMonitor(a_invokerHandle, pMonitor);
+    EvLoopInvokerUnRegisterEventsMonitorEvLoopThread(a_invokerHandle, pMonitor);
     return CPPUTILS_NULL;
 }
 

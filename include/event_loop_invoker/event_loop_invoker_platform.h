@@ -9,7 +9,7 @@
 #ifndef EVLOOPINVK_INCLUDE_EVLOOPINVK_EVENT_LOOP_INVOKER_PLATFORM_H
 #define EVLOOPINVK_INCLUDE_EVLOOPINVK_EVENT_LOOP_INVOKER_PLATFORM_H
 
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/export_symbols.h>
 
 
 CPPUTILS_BEGIN_C
@@ -23,7 +23,8 @@ CPPUTILS_BEGIN_C
 #include <Windows.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-#define EvLoopInvokerPtrToMsg(_ptr)     ((MSG*)(_ptr))
+#define EvLoopInvokerPtrToMsg(_ptr)         ((MSG*)(_ptr))
+#define EvLoopInvokerPtrToRequestCode(_ptr) ( (int)(EvLoopInvokerPtrToMsg(_ptr)->message) )
 
 #elif defined(__linux__) || defined(__linux)
 
@@ -31,15 +32,23 @@ CPPUTILS_BEGIN_C
 #include <xcb/xcb.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
-#define EvLoopInvokerPtrToMsg(_ptr)     ((xcb_generic_event_t*)(_ptr))
+#define EvLoopInvokerPtrToMsg(_ptr)         ((xcb_generic_event_t*)(_ptr))
+#define EvLoopInvokerPtrToRequestCode(_ptr) ( (int)(EvLoopInvokerPtrToMsg(_ptr)->response_type) )
+#ifdef EvLoopInvoker_platform_specific_functions_needed
 EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnection(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance);
+#endif
 
 #elif defined(__APPLE__)
 
 #ifdef __OBJC__
+#include <cinternal/disable_compiler_warnings.h>
 #import <AppKit/NSEvent.h>
+#include <cinternal/undisable_compiler_warnings.h>
 #endif
 #define EvLoopInvokerPtrToMsg(_ptr)     ((NSEvent*)(_ptr))
+#ifdef EvLoopInvoker_platform_specific_functions_needed
+EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg);
+#endif
 
 #else
 # platform is not supported

@@ -46,7 +46,7 @@ struct EvLoopInvokerHandle {
     DWORD							        dwGuiThreadId;
     ATOM                                    regClassReturn;
     ATOM                                    reserved01;
-    void*                                   reserved02;
+    ptrdiff_t                               inputArg;
     CPPUTILS_BISTATE_FLAGS_UN(
         shouldRun,
         hasError
@@ -77,10 +77,9 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
         return pRetStr;
     }
 
-    CPPUTILS_STATIC_CAST(void, a_inp);
-
     pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
     pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+    pRetStr->inputArg = (ptrdiff_t)a_inp;
 
     pRetStr->waitGuiThreadSema = CreateSemaphoreA(CPPUTILS_NULL, 0, 100, CPPUTILS_NULL);
     if (!(pRetStr->waitGuiThreadSema)) {
@@ -140,7 +139,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 
 /*/// platform specific api  ///*/
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThread(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
 {
     struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1, sizeof(struct EvLoopInvokerEventsMonitor));
     if (!pMonitor) {
@@ -159,7 +158,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThread(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
 {
     if (a_eventsMonitor) {
         if (a_eventsMonitor->next) {

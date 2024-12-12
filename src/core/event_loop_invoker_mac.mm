@@ -13,10 +13,14 @@
 
 
 #include <event_loop_invoker/event_loop_invoker_platform.h>
+#include <event_loop_invoker/event_loop_invoker.h>
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
+#include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <Foundation/Foundation.h>
+#include <cinternal/undisable_compiler_warnings.h>
 
 
 CPPUTILS_BEGIN_C
@@ -31,6 +35,7 @@ struct EvLoopInvokerEventsMonitor{
 struct EvLoopInvokerHandle{
     NSOperationQueue*                   operationQueue;
     struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
+    ptrdiff_t                           inputArg;
     id                                  eventMonitor;
     CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError)flags;
 };
@@ -56,7 +61,11 @@ static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* C
         return 0;
     }
 
-    a_instance->eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:NSEventMaskAny
+    const NSEventMask mask = ((a_instance->inputArg) > 0)
+        ? (NSEventMask)(a_instance->inputArg)
+        : NSEventMaskAny;
+
+    a_instance->eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:mask
         handler:^(NSEvent* a_event){
             EvLoopInvokerCallAllMonitorsInline(a_instance,a_event);
         }];
@@ -88,8 +97,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
 
     pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
     pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-
-    (void)a_inp;
+    pRetStr->inputArg = (ptrdiff_t)a_inp;
 
     // Create an instance of NSOperationQueue with custom settings
     pRetStr->operationQueue = [[NSOperationQueue alloc] init];
@@ -151,7 +159,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 }
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThread(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
 {
     if(CreateEventMonitorIfNeededInline(a_instance)){
         return CPPUTILS_NULL;
@@ -174,7 +182,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThread(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
 {
     if(a_eventsMonitor){
         if(a_eventsMonitor->next){
@@ -189,6 +197,14 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitor(struct EvLoopInvoker
         free(a_eventsMonitor);
         RemoveEventMonitorIfNeededInline(a_instance);
     }  //  if(a_eventsMonitor){
+}
+
+
+EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
+{
+    NSEvent* const pEvent = EvLoopInvokerPtrToMsg(a_msg);
+    const int evType = (int)([pEvent type]);
+    return evType;
 }
 
 
