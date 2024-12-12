@@ -79,7 +79,7 @@ static bool EvLoopInvokerTestEventMonitor(struct EvLoopInvokerHandle* CPPUTILS_A
 
 static void* BlockedFunctionToRegisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
-    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitorEvLoopThread(a_invokerHandle,&EvLoopInvokerTestEventMonitor, a_pArg);
+    struct EvLoopInvokerEventsMonitor* const pMonitor = EvLoopInvokerRegisterEventsMonitorEvLoopThr(a_invokerHandle,&EvLoopInvokerTestEventMonitor, a_pArg);
     s_nCreatorThreadId = (int)CinternalGetCurrentTid();
     fprintf(stdout, "mainThreadId = %d, creatorThreadId = %d\n", s_nMainThreadId, s_nCreatorThreadId);
     return pMonitor;
@@ -89,7 +89,7 @@ static void* BlockedFunctionToRegisterMonitor(struct EvLoopInvokerHandle* CPPUTI
 static void* BlockedFunctionToUnregisterMonitor(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg)
 {
     struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)a_pArg;
-    EvLoopInvokerUnRegisterEventsMonitorEvLoopThread(a_invokerHandle, pMonitor);
+    EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(a_invokerHandle, pMonitor);
     return CPPUTILS_NULL;
 }
 
