@@ -257,9 +257,15 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 
 /*/// platform specific api  ///*/
 
-EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXcbConnectionEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
+EVLOOPINVK_EXPORT xcb_connection_t* EvLoopInvokerCurrentXConnectionEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
 {
     return a_instance->connection;
+}
+
+
+EVLOOPINVK_EXPORT xcb_screen_t* EvLoopInvokerCurrentXDefaultDisplayEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
+{
+    return a_instance->default_screen;
 }
 
 
