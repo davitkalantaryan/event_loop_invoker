@@ -336,35 +336,35 @@ static void* EventLoopInvokerCallbacksThread(void* a_pData)
 static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance)
 {
     xcb_generic_event_t* event;
-    xcb_client_message_event_t* clntMsg_p;
-    struct EvLoopInvokerCallData* pCalldata;
-    void* pRet;
 
     while ( a_instance->flags.rd.shouldRun_true ) {
         event = xcb_wait_for_event(a_instance->connection);
         
         if(!EvLoopInvokerCallAllMonitorsInline(a_instance,event)){
             switch (event->response_type & ~0x80) {
-            case XCB_CLIENT_MESSAGE:
-                clntMsg_p = (xcb_client_message_event_t *)event;
-                pCalldata = (struct EvLoopInvokerCallData*)(&(clntMsg_p->data));
-                switch(pCalldata->type){
-                case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK:
-                    pRet = (*(pCalldata->blockedCall_p->fnc))(a_instance,pCalldata->blockedCall_p->pInOut);
-                    pCalldata->blockedCall_p->pInOut = pRet;
-                    sem_post( &(pCalldata->blockedCall_p->sema) );
-                    break;
-                case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK:
-                    (*(pCalldata->asyncCall.fnc))(a_instance,pCalldata->asyncCall.pIn);
-                    break;
-                default:
-                    break;
-                }  //  switch(clntMsg->data.data8[0]){
-                break;
+            case XCB_CLIENT_MESSAGE:{
+                xcb_client_message_event_t* const clntMsg_p = (xcb_client_message_event_t *)event;
+                if((clntMsg_p->window)==(a_instance->msg_window)){
+                    void* pRet;
+                    struct EvLoopInvokerCallData* const pCalldata = (struct EvLoopInvokerCallData*)(&(clntMsg_p->data));
+                    switch(pCalldata->type){
+                    case EVENT_LOOP_INVOKER_BLOCKED_CALLFNC_HOOK:
+                        pRet = (*(pCalldata->blockedCall_p->fnc))(a_instance,pCalldata->blockedCall_p->pInOut);
+                        pCalldata->blockedCall_p->pInOut = pRet;
+                        sem_post( &(pCalldata->blockedCall_p->sema) );
+                        break;
+                    case EVENT_LOOP_INVOKER_ASYNC_CALLFNC_HOOK:
+                        (*(pCalldata->asyncCall.fnc))(a_instance,pCalldata->asyncCall.pIn);
+                        break;
+                    default:
+                        break;
+                    }  //  switch(clntMsg->data.data8[0]){
+                }  //  f((clntMsg_p->window)==(a_instance->msg_window)){
+            }break;  //  case XCB_CLIENT_MESSAGE:{
             default:
                 break;
             }  //  switch (event->response_type & ~0x80) {
-        }
+        }  //  if(!EvLoopInvokerCallAllMonitorsInline(a_instance,event)){
                 
         free(event);
         
