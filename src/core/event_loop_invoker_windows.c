@@ -14,6 +14,7 @@
 #include "event_loop_invoker_common.h"
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
+#include <cinternal/signals.h>
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -123,37 +124,20 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData) CPPUTILS_NOEXCEPT
 {
-    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1, sizeof(struct EvLoopInvokerEventsMonitor));
-    if (!pMonitor) {
-        return CPPUTILS_NULL;
-    }
-
-    pMonitor->clbk = a_fnc;
-    pMonitor->clbkData = a_clbkData;
-    pMonitor->prev = CPPUTILS_NULL;
-    pMonitor->next = a_instance->pFirstMonitor;
-    if (a_instance->pFirstMonitor) {
-        a_instance->pFirstMonitor->prev = pMonitor;
-    }
-    a_instance->pFirstMonitor = pMonitor;
-    return pMonitor;
+    return EvLoopInvokerRegisterEventsMonitorEvLoopThrInlineBase(&(a_instance->base), a_fnc, a_clbkData);
 }
 
 
 EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
 {
-    if (a_eventsMonitor) {
-        if (a_eventsMonitor->next) {
-            a_eventsMonitor->next->prev = a_eventsMonitor->prev;
-        }
-        if (a_eventsMonitor->prev) {
-            a_eventsMonitor->prev->next = a_eventsMonitor->next;
-        }
-        else {
-            a_instance->pFirstMonitor = a_eventsMonitor->next;
-        }
-        free(a_eventsMonitor);
-    }  //  if(a_eventsMonitor){
+    EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(&(a_instance->base), a_eventsMonitor);
+}
+
+
+EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
+{
+    CPPUTILS_STATIC_CAST(void, a_instance);
+    CinternalSleepInterruptableMs(a_timeMs);
 }
 
 
@@ -183,7 +167,7 @@ static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) 
         CPPUTILS_TRY{
             while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
                 TranslateMessage(&msg);
-                if (!EvLoopInvokerCallAllMonitorsInline(pRetStr, &msg)) {
+                if (!EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(pRetStr->base), &msg)) {
                     DispatchMessageA(&msg);
                 }
             }  //  while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
@@ -209,12 +193,16 @@ static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandl
         UnregisterClassA(EVENT_LOOP_INVOKER_CLASS_NAME, a_instance->hInstance);
         a_instance->regClassReturn = 0;
     }
+
+    EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
 }
 
 
 static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
     WNDCLASSA regClassData;
+
+    EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base));
 
     a_instance->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
 
