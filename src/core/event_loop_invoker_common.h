@@ -33,7 +33,7 @@ struct EvLoopInvokerHandleBase{
 };
 
 
-static inline bool EvLoopInvokerCallAllMonitorsInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, void* CPPUTILS_ARG_NN a_event) CPPUTILS_NOEXCEPT {
+static inline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, void* CPPUTILS_ARG_NN a_event) CPPUTILS_NOEXCEPT {
     struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
     while(pMonitor){
         pMonitorNext = pMonitor->next;
@@ -43,6 +43,12 @@ static inline bool EvLoopInvokerCallAllMonitorsInlineBase(struct EvLoopInvokerHa
         pMonitor = pMonitorNext;
     }  //  while(pMonitor){
     return false;
+}
+
+
+static inline void EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    a_instance->pFirstMonitor = CPPUTILS_NULL;
 }
 
 

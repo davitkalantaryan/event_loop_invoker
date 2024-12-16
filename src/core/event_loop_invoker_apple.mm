@@ -35,7 +35,8 @@ struct EvLoopInvokerHandle{
     )flags;
 };
 
-static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData);
+static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT;
+static void* EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT;
 
 
 static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
@@ -49,7 +50,7 @@ static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* C
 
     a_instance->eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:mask
         handler:^(NSEvent* a_event){
-            EvLoopInvokerCallAllMonitorsInlineBase(&(a_instance->base),a_event);
+            EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(a_instance->base),a_event);
         }];
     if(a_instance->eventMonitor){
         return 0;
@@ -116,6 +117,8 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
     pRetStr->operationQueue.name = @"MyOperationQueue"; // Set a custom name for the queue
     pRetStr->operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0); // Set the underlying dispatch queue to a background queue
     pRetStr->operationQueue.suspended = NO; // Start the queue running
+    
+    EvLoopInvokerCallFuncionBlocked(a_instance,&EventLoopInvokerInitInstanceInEventLoop,CPPUTILS_NULL);
 
     return pRetStr;
 }
@@ -188,7 +191,7 @@ EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEvents(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
 {
     @autoreleasepool {
         if([NSThread isMainThread]){
@@ -219,12 +222,20 @@ EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEvents(struct EvLoopInvokerHandle* CP
 
 /*/////////////////////////////////////////////////////////////////////////////////*/
 
-static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData)
+static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT
 {
     if(a_instance->eventMonitor){
         RemoveEventMonitorInline(a_instance);
     }
     EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
+    CPPUTILS_STATIC_CAST(void,a_pData);
+    return CPPUTILS_NULL;
+}
+
+
+static void* EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT
+{
+    EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base));
     CPPUTILS_STATIC_CAST(void,a_pData);
     return CPPUTILS_NULL;
 }
