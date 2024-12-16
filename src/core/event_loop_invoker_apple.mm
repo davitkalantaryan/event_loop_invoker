@@ -12,8 +12,7 @@
 #ifdef __APPLE__
 
 
-#include <event_loop_invoker/event_loop_invoker_platform.h>
-#include <event_loop_invoker/event_loop_invoker.h>
+#include "event_loop_invoker_common.h"
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <cinternal/disable_compiler_warnings.h>
@@ -25,35 +24,18 @@
 
 CPPUTILS_BEGIN_C
 
-struct EvLoopInvokerEventsMonitor{
-    struct EvLoopInvokerEventsMonitor *prev, *next;
-    EvLoopInvokerTypeEventMonitor   clbk;
-    void*                           clbkData;
-};
-
 
 struct EvLoopInvokerHandle{
+    struct EvLoopInvokerHandleBase      base;
     NSOperationQueue*                   operationQueue;
-    struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
     ptrdiff_t                           inputArg;
     id                                  eventMonitor;
-    CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError)flags;
+    CPPUTILS_BISTATE_FLAGS_UN(
+        hasMainRunLoop
+    )flags;
 };
 
-static inline void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData);
-
-
-static inline bool EvLoopInvokerCallAllMonitorsInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, NSEvent* CPPUTILS_ARG_NN a_event){
-    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
-    while(pMonitor){
-        pMonitorNext = pMonitor->next;
-        if((*(pMonitor->clbk))(a_instance,pMonitor->clbkData,a_event)){
-            return true;
-        }
-        pMonitor = pMonitorNext;
-    }  //  while(pMonitor){
-    return false;
-}
+static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData);
 
 
 static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
@@ -67,7 +49,7 @@ static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* C
 
     a_instance->eventMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:mask
         handler:^(NSEvent* a_event){
-            EvLoopInvokerCallAllMonitorsInline(a_instance,a_event);
+            EvLoopInvokerCallAllMonitorsInlineBase(&(a_instance->base),a_event);
         }];
     if(a_instance->eventMonitor){
         return 0;
@@ -76,13 +58,26 @@ static inline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* C
 }
 
 
-static inline void RemoveEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
-    if(a_instance->eventMonitor){
-        if(a_instance->pFirstMonitor){
-            return;
-        }
-        [NSEvent removeMonitor: a_instance->eventMonitor];
-        a_instance->eventMonitor = CPPUTILS_NULL;
+static inline void RemoveEventMonitorInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
+    [NSEvent removeMonitor: a_instance->eventMonitor];
+    a_instance->eventMonitor = CPPUTILS_NULL;
+}
+
+
+static inline void LoopedWaitInTheLoop(NSRunLoop* a_runLoop, int64_t a_timeMs){
+    if(a_timeMs<0){
+        //
+    }
+    else{
+        const double waitTimeSec = ((double)a_timeMs)/1000.;
+        NSDate*const futureDate = [NSDate dateWithTimeIntervalSinceNow:waitTimeSec];
+        NSTimer*const timer = [NSTimer scheduledTimerWithTimeInterval:waitTimeSec
+                repeats:NO
+                block:^(NSTimer *tmr){
+                    (void)tmr;
+                }];
+        [a_runLoop addTimer:timer forMode:NSRunLoopCommonModes];
+        [a_runLoop runUntilDate:futureDate];
     }
 }
 
@@ -96,7 +91,16 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
     }
 
     pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
-    pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+
+    NSRunLoop* const runLoop = [NSRunLoop currentRunLoop];
+    if(runLoop && ([runLoop currentMode] == NSDefaultRunLoopMode) ){
+        pRetStr->flags.wr.hasMainRunLoop = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+    }
+    else{
+        pRetStr->flags.wr.hasMainRunLoop = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+    }
+
+    //pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
     pRetStr->inputArg = (ptrdiff_t)a_inp;
 
     // Create an instance of NSOperationQueue with custom settings
@@ -113,14 +117,14 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
     pRetStr->operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0); // Set the underlying dispatch queue to a background queue
     pRetStr->operationQueue.suspended = NO; // Start the queue running
 
-   return pRetStr;
+    return pRetStr;
 }
 
 
 EVLOOPINVK_EXPORT void  EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
 {
     if(a_instance){
-        a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+        //a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
         EvLoopInvokerCallFuncionBlocked(a_instance,&EventLoopInvokerCleanInstanceInEventLoop,CPPUTILS_NULL);
         [a_instance->operationQueue release];
         free(a_instance);
@@ -159,44 +163,20 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
 }
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData) CPPUTILS_NOEXCEPT
 {
     if(CreateEventMonitorIfNeededInline(a_instance)){
         return CPPUTILS_NULL;
     }
-
-    struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1,sizeof(struct EvLoopInvokerEventsMonitor));
-    if(!pMonitor){
-        return CPPUTILS_NULL;
-    }
-
-    pMonitor->clbk = a_fnc;
-    pMonitor->clbkData = a_clbkData;
-    pMonitor->prev = CPPUTILS_NULL;
-    pMonitor->next = a_instance->pFirstMonitor;
-    if(a_instance->pFirstMonitor){
-        a_instance->pFirstMonitor->prev = pMonitor;
-    }
-    a_instance->pFirstMonitor = pMonitor;
-    return pMonitor;
+    return EvLoopInvokerRegisterEventsMonitorEvLoopThrInlineBase(&(a_instance->base),a_fnc,a_clbkData);
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
 {
-    if(a_eventsMonitor){
-        if(a_eventsMonitor->next){
-            a_eventsMonitor->next->prev = a_eventsMonitor->prev;
-        }
-        if(a_eventsMonitor->prev){
-            a_eventsMonitor->prev->next = a_eventsMonitor->next;
-        }
-        else{
-            a_instance->pFirstMonitor = a_eventsMonitor->next;
-        }
-        free(a_eventsMonitor);
-        RemoveEventMonitorIfNeededInline(a_instance);
-    }  //  if(a_eventsMonitor){
+    if(EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(&(a_instance->base),a_eventsMonitor)){
+        RemoveEventMonitorInline(a_instance);
+    }
 }
 
 
@@ -208,20 +188,43 @@ EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
 }
 
 
+EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEvents(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
+{
+    @autoreleasepool {
+        if([NSThread isMainThread]){
+            NSRunLoop* const pMainRunLoop = [NSRunLoop mainRunLoop];
+            LoopedWaitInTheLoop(pMainRunLoop,a_timeMs);
+        }
+        else{
+            if(a_instance->flags.rd.hasMainRunLoop_false){
+                __block const int64_t timeMs = a_timeMs;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    // Your code to be executed on the main thread goes here
+                    NSRunLoop* const pMainRunLoop = [NSRunLoop mainRunLoop];
+                    if ([pMainRunLoop currentMode] != NSDefaultRunLoopMode) {
+                        // The run loop is not running, no concurency issue call it here
+                        LoopedWaitInTheLoop(pMainRunLoop,timeMs);
+                    }  //  if ([pMainRunLoop currentMode] != NSDefaultRunLoopMode) {
+                });  //  dispatch_async(dispatch_get_main_queue(), ^{
+            }  //  if(a_instance->flags.rd.hasMainRunLoop_false){
+            else{
+                NSRunLoop* const pCurRunLoop = [NSRunLoop currentRunLoop];
+                LoopedWaitInTheLoop(pCurRunLoop,a_timeMs);
+            }
+        }
+    }  //  @autoreleasepool {
+
+}
+
+
 /*/////////////////////////////////////////////////////////////////////////////////*/
 
-static inline void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData)
+static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData)
 {
-    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
-    while(pMonitor){
-        pMonitorNext = pMonitor->next;
-        free(pMonitor);
-        pMonitor = pMonitorNext;
-    }  //  while(pMonitor){
-    a_instance->pFirstMonitor = CPPUTILS_NULL;
-
-    RemoveEventMonitorIfNeededInline(a_instance);
-
+    if(a_instance->eventMonitor){
+        RemoveEventMonitorInline(a_instance);
+    }
+    EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
     CPPUTILS_STATIC_CAST(void,a_pData);
     return CPPUTILS_NULL;
 }

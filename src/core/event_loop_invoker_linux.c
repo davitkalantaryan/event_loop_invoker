@@ -15,8 +15,7 @@
 #define cinternal_gettid_needed
 #endif
 
-#include <event_loop_invoker/event_loop_invoker_platform.h>
-#include <event_loop_invoker/event_loop_invoker.h>
+#include "event_loop_invoker_common.h"
 #include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
 #include <cinternal/gettid.h>
@@ -56,14 +55,8 @@ struct EvLoopInvokerCallData{
 };
 
 
-struct EvLoopInvokerEventsMonitor{
-    struct EvLoopInvokerEventsMonitor *prev, *next;
-    EvLoopInvokerTypeEventMonitor   clbk;
-    void*                           clbkData;
-};
-
-
 struct EvLoopInvokerHandle{
+    struct EvLoopInvokerHandleBase      base;
     char*                               displayName;
     pthread_t                           monitor_thread;
     sem_t                               sema;
@@ -71,7 +64,6 @@ struct EvLoopInvokerHandle{
     xcb_connection_t*                   connection;
     xcb_screen_t*                       default_screen;
     xcb_window_t                        msg_window;
-    struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
     
     CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError, semaCreated)flags;
 };
@@ -86,19 +78,6 @@ static inline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_
     }
     free(a_instance->displayName);
     free(a_instance);
-}
-
-
-static inline bool EvLoopInvokerCallAllMonitorsInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, xcb_generic_event_t* CPPUTILS_ARG_NN a_event){
-    struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
-    while(pMonitor){
-        pMonitorNext = pMonitor->next;
-        if((*(pMonitor->clbk))(a_instance,pMonitor->clbkData,a_event)){
-            return true;
-        }
-        pMonitor = pMonitorNext;
-    }  //  while(pMonitor){
-    return false;
 }
 
 
@@ -269,7 +248,7 @@ EVLOOPINVK_EXPORT xcb_screen_t* EvLoopInvokerCurrentXDefaultDisplayEvLoopThr(str
 }
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData)
+EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1,sizeof(struct EvLoopInvokerEventsMonitor));
     if(!pMonitor){
@@ -288,7 +267,7 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor)
+EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
 {
     if(a_eventsMonitor){
         if(a_eventsMonitor->next){
