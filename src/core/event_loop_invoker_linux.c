@@ -75,7 +75,7 @@ struct EvLoopInvokerHandle{
 static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT;
 
 
-static inline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT {
+static PrvEvLoopInvokerInline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT {
     if(a_instance->flags.rd.semaCreated_true){
         sem_destroy(&(a_instance->sema));
     }
@@ -84,7 +84,7 @@ static inline void CleanInstanceInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_
 }
 
 
-static inline void EventLoopInvokerCleanInstanceInEventLoopInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+static PrvEvLoopInvokerInline void EventLoopInvokerCleanInstanceInEventLoopInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {    
     if(a_instance->msg_window){
         xcb_destroy_window(a_instance->connection, a_instance->msg_window);
@@ -331,7 +331,7 @@ static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTI
 }
 
 
-static inline xcb_screen_t *screen_of_display (xcb_connection_t* a_connection, int a_screen) CPPUTILS_NOEXCEPT {
+static PrvEvLoopInvokerInline xcb_screen_t *screen_of_display (xcb_connection_t* a_connection, int a_screen) CPPUTILS_NOEXCEPT {
     xcb_screen_iterator_t iter;
 
     iter = xcb_setup_roots_iterator (xcb_get_setup (a_connection));
@@ -343,7 +343,7 @@ static inline xcb_screen_t *screen_of_display (xcb_connection_t* a_connection, i
 }
 
 
-static inline xcb_window_t create_message_window(xcb_connection_t *connection, xcb_screen_t *screen) CPPUTILS_NOEXCEPT {
+static PrvEvLoopInvokerInline xcb_window_t create_message_window(xcb_connection_t *connection, xcb_screen_t *screen) CPPUTILS_NOEXCEPT {
     xcb_window_t window = xcb_generate_id(connection);
     uint32_t value_mask = XCB_CW_EVENT_MASK;
     uint32_t value_list[] = { XCB_EVENT_MASK_PROPERTY_CHANGE };

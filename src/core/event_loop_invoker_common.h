@@ -20,6 +20,12 @@
 CPPUTILS_BEGIN_C
 
 
+//#define PrvEvLoopInvokerInline
+#ifndef PrvEvLoopInvokerInline
+#define PrvEvLoopInvokerInline inline
+#endif
+
+
 struct EvLoopInvokerEventsMonitor{
     struct EvLoopInvokerEventsMonitor *prev, *next;
     EvLoopInvokerTypeEventMonitor   clbk;
@@ -33,7 +39,7 @@ struct EvLoopInvokerHandleBase{
 };
 
 
-static inline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, void* CPPUTILS_ARG_NN a_event) CPPUTILS_NOEXCEPT {
+static PrvEvLoopInvokerInline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, void* CPPUTILS_ARG_NN a_event) CPPUTILS_NOEXCEPT {
     struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
     while(pMonitor){
         pMonitorNext = pMonitor->next;
@@ -46,13 +52,13 @@ static inline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(struct EvLo
 }
 
 
-static inline void EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+static PrvEvLoopInvokerInline void EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
     a_instance->pFirstMonitor = CPPUTILS_NULL;
 }
 
 
-static inline void EventLoopInvokerCleanInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+static PrvEvLoopInvokerInline void EventLoopInvokerCleanInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerEventsMonitor *pMonitorNext, *pMonitor = a_instance->pFirstMonitor;
     while(pMonitor){
@@ -64,7 +70,7 @@ static inline void EventLoopInvokerCleanInstanceInEventLoopInlineBase(struct EvL
 }
 
 
-static inline bool EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
+static PrvEvLoopInvokerInline bool EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
 {
     if(a_eventsMonitor){
         if(a_eventsMonitor->next){
@@ -87,7 +93,7 @@ static inline bool EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(struc
 }
 
 
-static inline struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThrInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData) CPPUTILS_NOEXCEPT
+static PrvEvLoopInvokerInline struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEventsMonitorEvLoopThrInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance, EvLoopInvokerTypeEventMonitor a_fnc, void* a_clbkData) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerEventsMonitor* const pMonitor = (struct EvLoopInvokerEventsMonitor*)calloc(1,sizeof(struct EvLoopInvokerEventsMonitor));
     if(!pMonitor){
