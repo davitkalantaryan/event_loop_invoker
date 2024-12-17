@@ -51,9 +51,10 @@ PrvEvLoopInvokerInline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(st
 }
 
 
-PrvEvLoopInvokerInline void EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
     a_instance->pFirstMonitor = CPPUTILS_NULL;
+    return 0;
 }
 
 

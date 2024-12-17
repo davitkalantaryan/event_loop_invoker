@@ -68,7 +68,11 @@ struct EvLoopInvokerHandle{
     xcb_screen_t*                       default_screen;
     xcb_window_t                        msg_window;
     
-    CPPUTILS_BISTATE_FLAGS_UN(shouldRun, hasError, semaCreated)flags;
+    CPPUTILS_BISTATE_FLAGS_UN(
+        shouldRun,
+        hasError,
+        semaCreated
+    )flags;
 };
 
 

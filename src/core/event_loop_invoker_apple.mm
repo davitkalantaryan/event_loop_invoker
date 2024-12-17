@@ -13,11 +13,13 @@
 
 
 #include "event_loop_invoker_common.h"
-#include <cinternal/bistateflags.h>
 #include <cinternal/logger.h>
+#include <cinternal/bistateflags.h>
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <pthread.h>
+#include <dispatch/dispatch.h>
 #include <Foundation/Foundation.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
@@ -27,11 +29,13 @@ CPPUTILS_BEGIN_C
 
 struct EvLoopInvokerHandle{
     struct EvLoopInvokerHandleBase      base;
-    NSOperationQueue*                   operationQueue;
+    NSThread*                           evLoopThreaNsHandle;
+    pthread_t                           evLoopThread;
     ptrdiff_t                           inputArg;
+    dispatch_semaphore_t                sema;
     id                                  eventMonitor;
     CPPUTILS_BISTATE_FLAGS_UN(
-        hasMainRunLoop
+        isOk
     )flags;
 };
 
@@ -59,66 +63,61 @@ PrvEvLoopInvokerInline int CreateEventMonitorIfNeededInline(struct EvLoopInvoker
 }
 
 
-PrvEvLoopInvokerInline void RemoveEventMonitorInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
-    [NSEvent removeMonitor: a_instance->eventMonitor];
-    a_instance->eventMonitor = CPPUTILS_NULL;
+PrvEvLoopInvokerInline void EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    if(a_instance->eventMonitor){
+        [NSEvent removeMonitor: a_instance->eventMonitor];
+        a_instance->eventMonitor = CPPUTILS_NULL;
+    }
+    EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
 }
 
 
-PrvEvLoopInvokerInline void LoopedWaitInTheLoop(NSRunLoop* a_runLoop, int64_t a_timeMs){
-    if(a_timeMs<0){
-        //
+PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    if(EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base))){
+        return 1;
     }
-    else{
-        const double waitTimeSec = ((double)a_timeMs)/1000.;
-        NSDate*const futureDate = [NSDate dateWithTimeIntervalSinceNow:waitTimeSec];
-        NSTimer*const timer = [NSTimer scheduledTimerWithTimeInterval:waitTimeSec
-                repeats:NO
-                block:^(NSTimer *tmr){
-                    (void)tmr;
-                }];
-        [a_runLoop addTimer:timer forMode:NSRunLoopCommonModes];
-        [a_runLoop runUntilDate:futureDate];
+
+    a_instance->evLoopThreaNsHandle = [NSThread currentThread];
+    NSLog(@"Thread started: %@", a_instance->evLoopThreaNsHandle);
+    if(!(a_instance->evLoopThreaNsHandle)){
+        EventLoopInvokerCleanInstanceInEventLoop(a_instance);
+        return 1;
     }
+
+    return 0;
 }
+
+
+static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT;
 
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
 {
+    int nRet;
     struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)calloc(1,sizeof(struct EvLoopInvokerHandle));
     if(!pRetStr){
         CInternalLogError("Unable allocate buffer");
         return CPPUTILS_NULL;
     }
 
-    pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
-
-    NSRunLoop* const runLoop = [NSRunLoop currentRunLoop];
-    if(runLoop && ([runLoop currentMode] == NSDefaultRunLoopMode) ){
-        pRetStr->flags.wr.hasMainRunLoop = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-    }
-    else{
-        pRetStr->flags.wr.hasMainRunLoop = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-    }
-
-    //pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-    pRetStr->inputArg = (ptrdiff_t)a_inp;
-
-    // Create an instance of NSOperationQueue with custom settings
-    pRetStr->operationQueue = [[NSOperationQueue alloc] init];
-    if(!(pRetStr->operationQueue)){
-        CInternalLogError("Unable create an NSOperationQueue");
-        free(pRetStr);
+    pRetStr->sema = dispatch_semaphore_create(0);
+    if(!(pRetStr->sema)){
+        CInternalLogError("Unable to create semaphore");
         return CPPUTILS_NULL;
     }
 
-    pRetStr->operationQueue.maxConcurrentOperationCount = 1; // Allow 2 concurrent operations
-    pRetStr->operationQueue.qualityOfService = NSQualityOfServiceUserInteractive; // Set quality of service to user interactive
-    pRetStr->operationQueue.name = @"MyOperationQueue"; // Set a custom name for the queue
-    pRetStr->operationQueue.underlyingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0); // Set the underlying dispatch queue to a background queue
-    pRetStr->operationQueue.suspended = NO; // Start the queue running
-    
-    EvLoopInvokerCallFuncionBlocked(pRetStr,&EventLoopInvokerInitInstanceInEventLoop,CPPUTILS_NULL);
+    pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
+    //pRetStr->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+
+
+    nRet = pthread_create(&(pRetStr->evLoopThread),CPPUTILS_NULL,&EventLoopInvokerCallbacksThread,pRetStr);
+    if(nRet){
+        CleanInstanceInline(pRetStr);
+        CInternalLogError("Unable create a thread");
+        return CPPUTILS_NULL;
+    }
 
     return pRetStr;
 }
@@ -191,53 +190,29 @@ EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
-{
-    @autoreleasepool {
-        if([NSThread isMainThread]){
-            NSRunLoop* const pMainRunLoop = [NSRunLoop mainRunLoop];
-            LoopedWaitInTheLoop(pMainRunLoop,a_timeMs);
-        }
-        else{
-            if(a_instance->flags.rd.hasMainRunLoop_false){
-                __block const int64_t timeMs = a_timeMs;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    // Your code to be executed on the main thread goes here
-                    NSRunLoop* const pMainRunLoop = [NSRunLoop mainRunLoop];
-                    if ([pMainRunLoop currentMode] != NSDefaultRunLoopMode) {
-                        // The run loop is not running, no concurency issue call it here
-                        LoopedWaitInTheLoop(pMainRunLoop,timeMs);
-                    }  //  if ([pMainRunLoop currentMode] != NSDefaultRunLoopMode) {
-                });  //  dispatch_async(dispatch_get_main_queue(), ^{
-            }  //  if(a_instance->flags.rd.hasMainRunLoop_false){
-            else{
-                NSRunLoop* const pCurRunLoop = [NSRunLoop currentRunLoop];
-                LoopedWaitInTheLoop(pCurRunLoop,a_timeMs);
-            }
-        }
-    }  //  @autoreleasepool {
-
-}
-
-
 /*/////////////////////////////////////////////////////////////////////////////////*/
 
-static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT
+
+static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT
 {
-    if(a_instance->eventMonitor){
-        RemoveEventMonitorInline(a_instance);
+    int nRet;
+    struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)a_pData;
+
+    nRet = EventLoopInvokerInitInstanceInEventLoop(pRetStr);
+    if(nRet){
+        pRetStr->flags.wr.isOk = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+        dispatch_semaphore_signal(pRetStr->sema);
+        pthread_exit((void*)((size_t)nRet));
     }
-    EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
-    CPPUTILS_STATIC_CAST(void,a_pData);
-    return CPPUTILS_NULL;
-}
 
+    pRetStr->flags.wr.isOk = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+    dispatch_semaphore_signal(pRetStr->sema);
 
-static void* EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT
-{
-    EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base));
-    CPPUTILS_STATIC_CAST(void,a_pData);
-    return CPPUTILS_NULL;
+    [[NSRunLoop currentRunLoop] run];
+
+    EventLoopInvokerCleanInstanceInEventLoop(pRetStr);
+
+    pthread_exit(CPPUTILS_NULL);
 }
 
 

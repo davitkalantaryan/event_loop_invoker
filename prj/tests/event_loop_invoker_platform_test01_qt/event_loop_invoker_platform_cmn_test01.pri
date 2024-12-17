@@ -29,7 +29,7 @@ CONFIG += console
 win32{
     QMAKE_CXXFLAGS -= /Wall /WX
 } else:mac {
-    OBJECTIVE_SOURCES += "$${eventLoopInvokerRepoRoot}/src/core/event_loop_invoker_mac.mm"
+    OBJECTIVE_SOURCES += "$${eventLoopInvokerRepoRoot}/src/core/event_loop_invoker_apple.mm"
 } else:linux {
     LIBS += -pthread
     LIBS += -ldl
