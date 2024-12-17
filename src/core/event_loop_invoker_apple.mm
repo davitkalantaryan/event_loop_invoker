@@ -58,6 +58,9 @@ struct EvLoopInvokerHandle{
 };
 
 
+static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT;
+
+
 PrvEvLoopInvokerInline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
     if(a_instance->eventMonitor){
         return 0;
@@ -144,9 +147,6 @@ PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoop(struct EvLoop
 
     return 0;
 }
-
-
-static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT;
 
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
@@ -281,6 +281,27 @@ EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
     NSEvent* const pEvent = EvLoopInvokerPtrToMsg(a_msg);
     const int evType = (int)([pEvent type]);
     return evType;
+}
+
+
+EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
+{
+    NSRunLoop* const runLoop = [NSRunLoop currentRunLoop];
+    CPPUTILS_STATIC_CAST(void,a_instance);
+    if(a_timeMs<0){
+        [runLoop run];
+    }
+    else{
+        const double waitTimeSec = ((double)a_timeMs)/1000.;
+        NSDate*const futureDate = [NSDate dateWithTimeIntervalSinceNow:waitTimeSec];
+        NSTimer*const timer = [NSTimer scheduledTimerWithTimeInterval:waitTimeSec
+                repeats:NO
+                block:^(NSTimer *tmr){
+                    (void)tmr;
+                }];
+        [runLoop addTimer:timer forMode:NSRunLoopCommonModes];
+        [runLoop runUntilDate:futureDate];
+    }
 }
 
 
