@@ -27,20 +27,35 @@
 CPPUTILS_BEGIN_C
 
 
+struct EvLoopInvokerInvokeBlockedData{
+    EvLoopInvokerBlockedClbk    fnc;
+    dispatch_semaphore_t        sema;
+    void*                       arg2;
+    void*                       pRet;
+};
+
+struct EvLoopInvokerInvokeAsyncData{
+    EvLoopInvokerAsyncClbk      fnc;
+    CFRunLoopSourceRef          cFsourceAsync;
+    struct EvLoopInvokerHandle* arg1;
+    void*                       arg2;
+};
+
+
 struct EvLoopInvokerHandle{
-    struct EvLoopInvokerHandleBase      base;
-    NSThread*                           evLoopThreaNsHandle;
-    pthread_t                           evLoopThread;
-    ptrdiff_t                           inputArg;
-    dispatch_semaphore_t                sema;
-    id                                  eventMonitor;
+    struct EvLoopInvokerHandleBase          base;
+    pthread_t                               evLoopThread;
+    CFRunLoopRef                            evLoopThreaCfLoopHandle;
+    CFRunLoopSourceRef                      cFsourceBlocked;
+    ptrdiff_t                               inputArg;
+    dispatch_semaphore_t                    sema;
+    id                                      eventMonitor;
+    struct EvLoopInvokerInvokeBlockedData   blockedClbkData;
     CPPUTILS_BISTATE_FLAGS_UN(
+        shouldRun,
         isOk
     )flags;
 };
-
-static void* EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT;
-static void* EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, void* a_pData) CPPUTILS_NOEXCEPT;
 
 
 PrvEvLoopInvokerInline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
@@ -63,28 +78,69 @@ PrvEvLoopInvokerInline int CreateEventMonitorIfNeededInline(struct EvLoopInvoker
 }
 
 
+static void RunLoopSourcePerformBlocked(void* CPPUTILS_ARG_NN a_pData) CPPUTILS_NOEXCEPT
+{
+    struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)a_pData;
+    pRetStr->blockedClbkData.pRet = (*(pRetStr->blockedClbkData.fnc))(pRetStr,pRetStr->blockedClbkData.arg2);
+    dispatch_semaphore_signal(pRetStr->blockedClbkData.sema);
+}
+
+
+static void RunLoopSourcePerformAsync(void* CPPUTILS_ARG_NN a_pData) CPPUTILS_NOEXCEPT
+{
+    struct EvLoopInvokerInvokeAsyncData* const pData = (struct EvLoopInvokerInvokeAsyncData*)a_pData;
+    (*(pData->fnc))(pData->arg1,pData->arg2);
+    CFRunLoopRemoveSource(pData->arg1->evLoopThreaCfLoopHandle, pData->cFsourceAsync, kCFRunLoopDefaultMode);
+    CFRelease(pData->cFsourceAsync);
+    free(pData);
+}
+
+
 PrvEvLoopInvokerInline void EventLoopInvokerCleanInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
     if(a_instance->eventMonitor){
         [NSEvent removeMonitor: a_instance->eventMonitor];
         a_instance->eventMonitor = CPPUTILS_NULL;
     }
+
+    if(a_instance->cFsourceBlocked){
+        CFRunLoopRemoveSource(a_instance->evLoopThreaCfLoopHandle, a_instance->cFsourceBlocked, kCFRunLoopDefaultMode);
+        CFRelease(a_instance->cFsourceBlocked);
+        a_instance->cFsourceBlocked = CPPUTILS_NULL;
+    }
+
+    a_instance->evLoopThreaCfLoopHandle = CPPUTILS_NULL;
+
     EventLoopInvokerCleanInstanceInEventLoopInlineBase(&(a_instance->base));
 }
 
 
 PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
+    CFRunLoopSourceContext context;
+
     if(EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base))){
         return 1;
     }
 
-    a_instance->evLoopThreaNsHandle = [NSThread currentThread];
-    NSLog(@"Thread started: %@", a_instance->evLoopThreaNsHandle);
-    if(!(a_instance->evLoopThreaNsHandle)){
+    a_instance->evLoopThreaCfLoopHandle = CFRunLoopGetCurrent();
+    NSLog(@"Thread started: %@", a_instance->evLoopThreaCfLoopHandle);
+    if(!(a_instance->evLoopThreaCfLoopHandle)){
+        CInternalLogError("CFRunLoopGetCurrent failed");
         EventLoopInvokerCleanInstanceInEventLoop(a_instance);
         return 1;
     }
+
+    memset(&context,0,sizeof(CFRunLoopSourceContext));
+    context.info = a_instance;
+    context.perform = &RunLoopSourcePerformBlocked;
+    a_instance->cFsourceBlocked = CFRunLoopSourceCreate(CPPUTILS_NULL, 0, &context);
+    if(!(a_instance->cFsourceBlocked)){
+        CInternalLogError("CFRunLoopGetCurrent failed");
+        EventLoopInvokerCleanInstanceInEventLoop(a_instance);
+        return 1;
+    }
+    CFRunLoopAddSource(a_instance->evLoopThreaCfLoopHandle,a_instance->cFsourceBlocked,kCFRunLoopDefaultMode);
 
     return 0;
 }
@@ -109,13 +165,23 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
     }
 
     pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
-    //pRetStr->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-
+    pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
+    pRetStr->inputArg = (ptrdiff_t)a_inp;
 
     nRet = pthread_create(&(pRetStr->evLoopThread),CPPUTILS_NULL,&EventLoopInvokerCallbacksThread,pRetStr);
     if(nRet){
-        CleanInstanceInline(pRetStr);
+        dispatch_release(pRetStr->sema);
         CInternalLogError("Unable create a thread");
+        return CPPUTILS_NULL;
+    }
+
+    dispatch_semaphore_wait(pRetStr->sema,DISPATCH_TIME_FOREVER);
+    dispatch_release(pRetStr->sema);
+    pRetStr->sema = (dispatch_semaphore_t)0;
+
+    if(pRetStr->flags.rd.isOk_false){
+        free(pRetStr);
+        CInternalLogError("Error on event loop thread");
         return CPPUTILS_NULL;
     }
 
@@ -123,45 +189,72 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
 }
 
 
-EVLOOPINVK_EXPORT void  EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
 {
     if(a_instance){
-        //a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-        EvLoopInvokerCallFuncionBlocked(a_instance,&EventLoopInvokerCleanInstanceInEventLoop,CPPUTILS_NULL);
-        [a_instance->operationQueue release];
+        void* pThreadRet;
+        a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+        CFRunLoopStop(a_instance->evLoopThreaCfLoopHandle); // Stop the run loop
+        pthread_join(a_instance->evLoopThread,&pThreadRet);
         free(a_instance);
     }
 }
 
 
-EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlockedEx(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData, int* a_pnErrorCode) CPPUTILS_NOEXCEPT
 {
-    void* pReturn = CPPUTILS_NULL;
-
-    {
-        __block struct EvLoopInvokerHandle* const pRetStr = a_instance;
-        __block const EvLoopInvokerBlockedClbk fnc = a_fnc;
-        __block void* const pData = a_pData;
-        __block void**const ppReturn = &pReturn;
-        NSBlockOperation *operation1 = [NSBlockOperation blockOperationWithBlock:^{
-            *ppReturn = (*fnc)(pRetStr,pData);
-        }];
-        [pRetStr->operationQueue addOperations:@[operation1] waitUntilFinished:YES];
+    const int64_t curThrId = CinternalGetCurrentTid();
+    if(curThrId==(a_instance->base.evLoopTid)){
+        if(a_pnErrorCode){
+            *a_pnErrorCode = 0;
+        }
+        return (*a_fnc)(a_instance,a_pData);
     }
-
-    return pReturn;
+    a_instance->blockedClbkData.fnc = a_fnc;
+    a_instance->blockedClbkData.sema = dispatch_semaphore_create(0);
+    if(!(a_instance->blockedClbkData.sema)){
+        if(a_pnErrorCode){
+            *a_pnErrorCode = 1;
+        }
+        return CPPUTILS_NULL;
+    }
+    a_instance->blockedClbkData.arg2 = a_pData;
+    CFRunLoopSourceSignal(a_instance->cFsourceBlocked);
+    CFRunLoopWakeUp(a_instance->evLoopThreaCfLoopHandle);
+    dispatch_semaphore_wait(a_instance->blockedClbkData.sema,DISPATCH_TIME_FOREVER);
+    dispatch_release(a_instance->blockedClbkData.sema);
+    a_instance->blockedClbkData.sema = (dispatch_semaphore_t)0;
+    if(a_pnErrorCode){
+        *a_pnErrorCode = 0;
+    }
+    return a_instance->blockedClbkData.pRet;
 }
 
 
-EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT int EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
 {
-    __block struct EvLoopInvokerHandle* const pRetStr = a_instance;
-    __block const EvLoopInvokerAsyncClbk fnc = a_fnc;
-    __block void* const pData = a_pData;
-    NSBlockOperation *operation1 = [NSBlockOperation blockOperationWithBlock:^{
-        (*fnc)(pRetStr,pData);
-    }];
-    [pRetStr->operationQueue addOperations:@[operation1] waitUntilFinished:NO];
+    CFRunLoopSourceContext context ;
+    struct EvLoopInvokerInvokeAsyncData* const pData = (struct EvLoopInvokerInvokeAsyncData*)calloc(1,sizeof(struct EvLoopInvokerInvokeAsyncData));
+    if(!pData){
+        return 1;
+    }
+    pData->fnc = a_fnc;
+    pData->arg1 = a_instance;
+    pData->arg2 = a_pData;
+
+    memset(&context,0,sizeof(CFRunLoopSourceContext));
+    context.info = pData;
+    context.perform = &RunLoopSourcePerformAsync;
+    pData->cFsourceAsync = CFRunLoopSourceCreate(CPPUTILS_NULL, 0, &context);
+    if(!(pData->cFsourceAsync)){
+        free(pData);
+        CInternalLogError("CFRunLoopGetCurrent failed");
+        return 1;
+    }
+    CFRunLoopAddSource(a_instance->evLoopThreaCfLoopHandle,pData->cFsourceAsync,kCFRunLoopDefaultMode);
+    CFRunLoopSourceSignal(pData->cFsourceAsync);
+    CFRunLoopWakeUp(a_instance->evLoopThreaCfLoopHandle);
+    return 0;
 }
 
 
@@ -177,7 +270,8 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerEventsMonitor* EvLoopInvokerRegisterEvents
 EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, struct EvLoopInvokerEventsMonitor* a_eventsMonitor) CPPUTILS_NOEXCEPT
 {
     if(EvLoopInvokerUnRegisterEventsMonitorEvLoopThrInlineBase(&(a_instance->base),a_eventsMonitor)){
-        RemoveEventMonitorInline(a_instance);
+        [NSEvent removeMonitor: a_instance->eventMonitor];
+        a_instance->eventMonitor = CPPUTILS_NULL;
     }
 }
 
@@ -208,7 +302,9 @@ static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT
     pRetStr->flags.wr.isOk = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
     dispatch_semaphore_signal(pRetStr->sema);
 
-    [[NSRunLoop currentRunLoop] run];
+    while(pRetStr->flags.rd.shouldRun_true){
+        CFRunLoopRun();
+    }
 
     EventLoopInvokerCleanInstanceInEventLoop(pRetStr);
 

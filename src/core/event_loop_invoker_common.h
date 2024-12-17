@@ -9,9 +9,14 @@
 #ifndef EVLOOPINVK_SRC_CORE_EVENT_LOOP_INVOKER_COMMON_H
 #define EVLOOPINVK_SRC_CORE_EVENT_LOOP_INVOKER_COMMON_H
 
+#ifndef cinternal_gettid_needed
+#define cinternal_gettid_needed
+#endif
+
 #include <event_loop_invoker/export_symbols.h>
 #include <event_loop_invoker/event_loop_invoker_platform.h>
 #include <event_loop_invoker/event_loop_invoker.h>
+#include <cinternal/gettid.h>
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <cinternal/undisable_compiler_warnings.h>
@@ -33,8 +38,8 @@ struct EvLoopInvokerEventsMonitor{
 
 
 struct EvLoopInvokerHandleBase{
+    int64_t                             evLoopTid;
     struct EvLoopInvokerEventsMonitor*  pFirstMonitor;
-    void*                               pReserved01;
 };
 
 
@@ -53,6 +58,7 @@ PrvEvLoopInvokerInline bool EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(st
 
 PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoopInlineBase(struct EvLoopInvokerHandleBase* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
+    a_instance->evLoopTid = CinternalGetCurrentTid();
     a_instance->pFirstMonitor = CPPUTILS_NULL;
     return 0;
 }
