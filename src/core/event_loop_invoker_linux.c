@@ -179,8 +179,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_i
 }
 
 
-
-EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlockedEx(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerBlockedClbk a_fnc, void* a_pData, int* a_pnErrorCode) CPPUTILS_NOEXCEPT
 {
     int nRet;
     struct EvLoopInvokerCallData* pCalldata;
@@ -201,6 +200,9 @@ EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHand
     nRet = sem_init( &(blockedCallData.sema), 0, 0);  // first 0 that not shared between processes, second 0 is the initial count
     if(nRet){
         CInternalLogError("Unable create a sema");
+        if(a_pnErrorCode){
+            *a_pnErrorCode = 1;
+        }
         return CPPUTILS_NULL;
     }
     
@@ -209,12 +211,17 @@ EVLOOPINVK_EXPORT void* EvLoopInvokerCallFuncionBlocked(struct EvLoopInvokerHand
     
     sem_wait( &(blockedCallData.sema) );
     sem_destroy( &(blockedCallData.sema) );
+    
+    if(a_pnErrorCode){
+        *a_pnErrorCode = 0;
+    }
+    
     return blockedCallData.pInOut;
 }
 
 
 
-EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT int  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, EvLoopInvokerAsyncClbk a_fnc, void* a_pData) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerCallData* pCalldata;
     xcb_client_message_event_t clntMsg;
@@ -232,6 +239,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerCallFuncionAsync(struct EvLoopInvokerHandle
     
     xcb_send_event(a_instance->connection, 0, a_instance->msg_window, XCB_EVENT_MASK_NO_EVENT, (char *)&clntMsg);
     xcb_flush(a_instance->connection);
+    return 0;
 }
 
 
