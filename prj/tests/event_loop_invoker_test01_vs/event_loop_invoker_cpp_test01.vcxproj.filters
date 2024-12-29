@@ -30,6 +30,9 @@
     <ClCompile Include="..\..\..\src\core\event_loop_invoker_linux.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_any_thread.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker.h">

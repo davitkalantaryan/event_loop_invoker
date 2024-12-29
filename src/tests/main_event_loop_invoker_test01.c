@@ -10,13 +10,16 @@
 #define cinternal_gettid_needed
 #endif
 
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_any_thread.h>
 #include <cinternal/signals.h>
 #include <cinternal/gettid.h>
+#include <cinternal/disable_compiler_warnings.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <assert.h>
 #include <time.h>
+#include <cinternal/undisable_compiler_warnings.h>
 
 
 static void* BlockedTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg);
@@ -29,16 +32,19 @@ int main(int a_argc, char* a_argv[])
     const int cnMainThreadId = (int)CinternalGetCurrentTid();
     time_t currentTime;
     void *callArg, *pRet;
+    struct EvLoopInvokerHandleAnyThread* invokerHandleAnyThr;
     struct EvLoopInvokerHandle* invokerHandle;
 
     CPPUTILS_STATIC_CAST(void, a_argc);
     CPPUTILS_STATIC_CAST(void, a_argv);
 
-    invokerHandle = EvLoopInvokerCreateHandle();
-    if (!invokerHandle) {
+    invokerHandleAnyThr = EvLoopInvokerCreateThreadAndHandle();
+    if (!invokerHandleAnyThr) {
         fprintf(stderr, "Unable to create event loop invoker\n");
         return 1;
     }
+    invokerHandle = EvLoopInvokerGetRawHandle(invokerHandleAnyThr);
+    assert(invokerHandle);
 
     currentTime = time(&currentTime);
     srand((unsigned int)currentTime);
@@ -67,7 +73,7 @@ int main(int a_argc, char* a_argv[])
         EvLoopInvokerCallFuncionAsync(invokerHandle, &AsyncTestFunction, callArg);
     }
 
-    EvLoopInvokerCleanHandle(invokerHandle);
+    EvLoopInvokerStopAndCleanHandle(invokerHandleAnyThr);
 
     return 0;
 }

@@ -14,7 +14,7 @@
 #endif
 
 #include <event_loop_invoker/event_loop_invoker_platform.h>
-#include <event_loop_invoker/event_loop_invoker.h>
+#include <event_loop_invoker/event_loop_invoker_any_thread.h>
 #include <cinternal/signals.h>
 #include <cinternal/gettid.h>
 #include <cinternal/signals.h>
@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <time.h>
+#include <assert.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
 
@@ -33,6 +34,7 @@ static int s_nMainThreadId;
 
 int main(int a_argc, char* a_argv[])
 {
+    struct EvLoopInvokerHandleAnyThread* invokerHandleAnyThr;
     struct EvLoopInvokerHandle* invokerHandle;
     struct EvLoopInvokerEventsMonitor* pMonitor;
     
@@ -42,15 +44,17 @@ int main(int a_argc, char* a_argv[])
     s_nMainThreadId = (int)CinternalGetCurrentTid();
     fprintf(stdout, "mainThreadId = %d\n", s_nMainThreadId);
 
-    invokerHandle = EvLoopInvokerCreateHandle();
-    if (!invokerHandle) {
+    invokerHandleAnyThr = EvLoopInvokerCreateThreadAndHandle();
+    if (!invokerHandleAnyThr) {
         fprintf(stderr, "Unable to create event loop invoker\n");
         return 1;
     }
+    invokerHandle = EvLoopInvokerGetRawHandle(invokerHandleAnyThr);
+    assert(invokerHandle);
 
     pMonitor = RegisterMonitor(invokerHandle,CPPUTILS_NULL);
-    if (!invokerHandle) {
-        EvLoopInvokerCleanHandle(invokerHandle);
+    if (!pMonitor) {
+        EvLoopInvokerStopAndCleanHandle(invokerHandleAnyThr);
         fprintf(stderr, "Unable to register monitor\n");
         return 1;
     }
@@ -58,7 +62,7 @@ int main(int a_argc, char* a_argv[])
     CinternalSleepInterruptableMs(5000);
 
     UnregisterMonitor(invokerHandle, pMonitor);
-    EvLoopInvokerCleanHandle(invokerHandle);
+    EvLoopInvokerStopAndCleanHandle(invokerHandleAnyThr);
 
     return 0;
 }

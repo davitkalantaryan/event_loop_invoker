@@ -37,6 +37,9 @@
   <ItemGroup>
     <None Include="..\..\..\src\core\event_loop_invoker_apple.mm" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_any_thread.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

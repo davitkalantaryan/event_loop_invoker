@@ -294,6 +294,9 @@
   <ItemGroup>
     <None Include="..\..\..\src\core\event_loop_invoker_mac.mm" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_any_thread.c" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

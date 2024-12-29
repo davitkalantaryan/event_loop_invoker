@@ -30,6 +30,9 @@
     <ClCompile Include="..\..\..\contrib\cinternal\src\core\cinternal_core_logger.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_any_thread.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker.h">
@@ -39,6 +42,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\event_loop_invoker\export_symbols.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker_any_thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
