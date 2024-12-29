@@ -18,6 +18,7 @@
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <time.h>
 #include <assert.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
@@ -34,8 +35,6 @@ CPPUTILS_BEGIN_C
 
 struct EvLoopInvokerHandle {
     struct EvLoopInvokerHandleBase          base;
-    HANDLE							        waitGuiThreadSema;
-    HANDLE							        guiThread;
     HINSTANCE						        hInstance;
     HWND							        functionalWnd;
     DWORD							        dwGuiThreadId;
@@ -48,12 +47,14 @@ struct EvLoopInvokerHandle {
     )flags;
 };
 
-static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) CPPUTILS_NOEXCEPT;
+
 static VOID NTAPI EvLoopInvokerUserApcClbk(_In_ ULONG_PTR a_arg) CPPUTILS_NOEXCEPT {(void)a_arg;}
+static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
+static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
 
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleForCurThrEx(const void* a_inp) CPPUTILS_NOEXCEPT
 {
     struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)calloc(1, sizeof(struct EvLoopInvokerHandle));
     if (!pRetStr) {
@@ -64,29 +65,8 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
     pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
     pRetStr->inputArg = (ptrdiff_t)a_inp;
 
-    pRetStr->waitGuiThreadSema = CreateSemaphoreA(CPPUTILS_NULL, 0, 100, CPPUTILS_NULL);
-    if (!(pRetStr->waitGuiThreadSema)) {
+    if (EventLoopInvokerConfigureInstanceInEventLoop(pRetStr)) {
         free(pRetStr);
-        CInternalLogError("Unable to create semaphore thread");
-        return CPPUTILS_NULL;
-    }
-
-    pRetStr->guiThread = CreateThread(CPPUTILS_NULL, 0, &EventLoopInvokerCallbacksThread, pRetStr, 0, &(pRetStr->dwGuiThreadId));
-    if (!(pRetStr->guiThread)) {
-        CloseHandle(pRetStr->waitGuiThreadSema);
-        free(pRetStr);
-        CInternalLogError("Unable to create callback thread");
-        return CPPUTILS_NULL;
-    }
-
-    WaitForSingleObject(pRetStr->waitGuiThreadSema, INFINITE);
-    CloseHandle(pRetStr->waitGuiThreadSema);
-    pRetStr->waitGuiThreadSema = CPPUTILS_NULL;
-    if (pRetStr->flags.rd.hasError_true) {
-        WaitForSingleObject(pRetStr->guiThread, INFINITE);
-        CloseHandle(pRetStr->guiThread);
-        free(pRetStr);
-        CInternalLogError("Error in the GUI thread");
         return CPPUTILS_NULL;
     }
 
@@ -94,16 +74,79 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandleEvLoopThr(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
 {
     if (a_instance) {
         a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-        PostThreadMessageA(a_instance->dwGuiThreadId, WM_USER + 1, 0, 0);
-        QueueUserAPC(&EvLoopInvokerUserApcClbk, a_instance->guiThread, 0);
-        WaitForSingleObject(a_instance->guiThread, INFINITE);
-        CloseHandle(a_instance->guiThread);
+        EventLoopInvokerClearInstanceFromEventLoop(a_instance);
         free(a_instance);
     }
+}
+
+
+EVLOOPINVK_EXPORT void  EvLoopInvokerStopLoopAnyThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    const int64_t thisThreadTid = CinternalGetCurrentTid();
+    a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+    if (thisThreadTid != (a_instance->base.evLoopTid)) {
+        const HANDLE guiThrHandle = OpenThread(SYNCHRONIZE,FALSE,CPPUTILS_STATIC_CAST(DWORD, a_instance->base.evLoopTid));
+        PostThreadMessageA(a_instance->dwGuiThreadId, WM_USER + 1, 0, 0);
+        if (guiThrHandle) {
+            QueueUserAPC(&EvLoopInvokerUserApcClbk, guiThrHandle, 0);
+        }  //  if (guiThrHandle) {
+    }  //  if (thisThreadTid != (a_instance->base.evLoopTid)) {
+}
+
+
+static inline int EvLoopInvokerLoopWithTimeoutEvLoopThrInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT  {
+    time_t currentTime, startTime;
+    int64_t durationRemaining = a_durationMs;
+    DWORD dwWaitRet;
+
+    startTime = time(&startTime);
+
+    do {
+
+        dwWaitRet = MsgWaitForMultipleObjectsEx(0, CPPUTILS_NULL, CPPUTILS_STATIC_CAST(DWORD, durationRemaining), QS_ALLINPUT, MWMO_ALERTABLE);
+        if (dwWaitRet == WAIT_TIMEOUT) {
+            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+        }  //  if (dwWaitRet == WAIT_TIMEOUT) {
+
+        currentTime = time(&currentTime);
+        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
+
+    } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
+
+    if (a_instance->flags.rd.shouldRun_false) {
+        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    }
+
+    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+}
+
+
+EVLOOPINVK_EXPORT int EvLoopInvokerLoopEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT
+{
+    MSG msg;
+    if (a_durationMs < 0) {
+        while (a_instance->flags.rd.shouldRun_true) {
+
+            CPPUTILS_TRY{
+                while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+                    TranslateMessage(&msg);
+                    if (!EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(a_instance->base), &msg)) {
+                        DispatchMessageA(&msg);
+                    }
+                }  //  while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+            } CPPUTILS_CATCH() {
+            }
+
+        }  //  while (a_instance->flags.rd.shouldRun_true) {
+
+        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    }
+
+    return EvLoopInvokerLoopWithTimeoutEvLoopThrInline(a_instance,a_durationMs);
 }
 
 
@@ -138,52 +181,9 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLo
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
-{
-    CPPUTILS_STATIC_CAST(void, a_instance);
-    CinternalSleepInterruptableMs(a_timeMs);
-}
-
-
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
-static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
 static LRESULT CALLBACK EventLoopInvokerWndPproc(HWND a_hWnd, UINT a_msgNumber, WPARAM a_wParam, LPARAM a_lParam) CPPUTILS_NOEXCEPT;
-
-
-static DWORD WINAPI EventLoopInvokerCallbacksThread(LPVOID a_lpThreadParameter) CPPUTILS_NOEXCEPT
-{
-    MSG msg;
-    struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)a_lpThreadParameter;
-    const int nRet = EventLoopInvokerConfigureInstanceInEventLoop(pRetStr);
-
-    if (nRet) {
-        EventLoopInvokerClearInstanceFromEventLoop(pRetStr);
-        ReleaseSemaphore(pRetStr->waitGuiThreadSema, 1, CPPUTILS_NULL);
-        ExitThread(1);
-    }
-
-    ReleaseSemaphore(pRetStr->waitGuiThreadSema, 1, CPPUTILS_NULL);
-
-    while (pRetStr->flags.rd.shouldRun_true) {
-
-        CPPUTILS_TRY{
-            while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-                TranslateMessage(&msg);
-                if (!EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(pRetStr->base), &msg)) {
-                    DispatchMessageA(&msg);
-                }
-            }  //  while (pRetStr->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-        } CPPUTILS_CATCH() {
-        }
-
-    }  //  while (pRetStr->flags.rd.shouldRun_true) {
-
-    EventLoopInvokerClearInstanceFromEventLoop(pRetStr);
-
-    ExitThread(0);
-}
 
 
 static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
