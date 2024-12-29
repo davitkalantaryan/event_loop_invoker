@@ -32,11 +32,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\src\core\event_loop_invoker_mac.mm">
-      <Filter>files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -46,5 +41,10 @@
     <ClInclude Include="..\..\..\include\event_loop_invoker\export_symbols.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\src\core\event_loop_invoker_apple.mm">
+      <Filter>files</Filter>
+    </None>
   </ItemGroup>
 </Project>
