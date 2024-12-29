@@ -99,6 +99,7 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerStopLoopAnyThr(struct EvLoopInvokerHandle* 
 
 
 static inline int EvLoopInvokerLoopWithTimeoutEvLoopThrInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT  {
+    MSG msg;
     time_t currentTime, startTime;
     int64_t durationRemaining = a_durationMs;
     DWORD dwWaitRet;
@@ -111,6 +112,11 @@ static inline int EvLoopInvokerLoopWithTimeoutEvLoopThrInline(struct EvLoopInvok
         if (dwWaitRet == WAIT_TIMEOUT) {
             return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
         }  //  if (dwWaitRet == WAIT_TIMEOUT) {
+
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }  //  while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
 
         currentTime = time(&currentTime);
         durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
