@@ -42,8 +42,7 @@ struct EvLoopInvokerHandle {
     ATOM                                    reserved01;
     ptrdiff_t                               inputArg;
     CPPUTILS_BISTATE_FLAGS_UN(
-        shouldRun,
-        hasError
+        shouldRun
     )flags;
 };
 
@@ -51,8 +50,19 @@ struct EvLoopInvokerHandle {
 static VOID NTAPI EvLoopInvokerUserApcClbk(_In_ ULONG_PTR a_arg) CPPUTILS_NOEXCEPT {(void)a_arg;}
 static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
 static void EventLoopInvokerClearInstanceFromEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
+static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT;
+static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
 
 
+PrvEvLoopInvokerInline void EventLoopInvokerHandleSingleEventInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, MSG* CPPUTILS_ARG_NN a_msg_p) CPPUTILS_NOEXCEPT{
+    TranslateMessage(a_msg_p);
+    if (!EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(a_instance->base), a_msg_p)) {
+        DispatchMessageA(a_msg_p);
+    }
+}
+
+
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleForCurThrEx(const void* a_inp) CPPUTILS_NOEXCEPT
 {
@@ -98,61 +108,14 @@ EVLOOPINVK_EXPORT void  EvLoopInvokerStopLoopAnyThr(struct EvLoopInvokerHandle* 
 }
 
 
-static inline int EvLoopInvokerLoopWithTimeoutEvLoopThrInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT  {
-    MSG msg;
-    time_t currentTime, startTime;
-    int64_t durationRemaining = a_durationMs;
-    DWORD dwWaitRet;
-
-    startTime = time(&startTime);
-
-    do {
-
-        dwWaitRet = MsgWaitForMultipleObjectsEx(0, CPPUTILS_NULL, CPPUTILS_STATIC_CAST(DWORD, durationRemaining), QS_ALLINPUT, MWMO_ALERTABLE);
-        if (dwWaitRet == WAIT_TIMEOUT) {
-            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
-        }  //  if (dwWaitRet == WAIT_TIMEOUT) {
-
-        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }  //  while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
-
-        currentTime = time(&currentTime);
-        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
-
-    } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
-
-    if (a_instance->flags.rd.shouldRun_false) {
-        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
-    }
-
-    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
-}
-
-
 EVLOOPINVK_EXPORT int EvLoopInvokerLoopEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT
 {
-    MSG msg;
     if (a_durationMs < 0) {
-        while (a_instance->flags.rd.shouldRun_true) {
-
-            CPPUTILS_TRY{
-                while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-                    TranslateMessage(&msg);
-                    if (!EvLoopInvokerCallAllMonitorsInEventLoopInlineBase(&(a_instance->base), &msg)) {
-                        DispatchMessageA(&msg);
-                    }
-                }  //  while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-            } CPPUTILS_CATCH() {
-            }
-
-        }  //  while (a_instance->flags.rd.shouldRun_true) {
-
+        EventLoopInvokerInfiniteEventLoop(a_instance);
         return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
     }
 
-    return EvLoopInvokerLoopWithTimeoutEvLoopThrInline(a_instance,a_durationMs);
+    return EvLoopInvokerLoopWithTimeoutEvLoopThr(a_instance,a_durationMs);
 }
 
 
@@ -187,7 +150,7 @@ EVLOOPINVK_EXPORT void EvLoopInvokerUnRegisterEventsMonitorEvLoopThr(struct EvLo
 }
 
 
-/*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
 static LRESULT CALLBACK EventLoopInvokerWndPproc(HWND a_hWnd, UINT a_msgNumber, WPARAM a_wParam, LPARAM a_lParam) CPPUTILS_NOEXCEPT;
 
@@ -268,6 +231,55 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
 
     a_instance->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
     return 0;
+}
+
+
+static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    MSG msg;
+    while (a_instance->flags.rd.shouldRun_true) {
+
+        CPPUTILS_TRY{
+            while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+                EventLoopInvokerHandleSingleEventInline(&msg);
+            }  //  while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
+        } CPPUTILS_CATCH() {
+        }
+
+    }  //  while (a_instance->flags.rd.shouldRun_true) {
+}
+
+
+static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT  
+{
+    MSG msg;
+    time_t currentTime, startTime;
+    int64_t durationRemaining = a_durationMs;
+    DWORD dwWaitRet;
+
+    startTime = time(&startTime);
+
+    do {
+
+        dwWaitRet = MsgWaitForMultipleObjectsEx(0, CPPUTILS_NULL, CPPUTILS_STATIC_CAST(DWORD, durationRemaining), QS_ALLINPUT, MWMO_ALERTABLE);
+        if (dwWaitRet == WAIT_TIMEOUT) {
+            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+        }  //  if (dwWaitRet == WAIT_TIMEOUT) {
+
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+            EventLoopInvokerHandleSingleEventInline(&msg);
+        }  //  while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+
+        currentTime = time(&currentTime);
+        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
+
+    } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
+
+    if (a_instance->flags.rd.shouldRun_false) {
+        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    }
+
+    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
 }
 
 

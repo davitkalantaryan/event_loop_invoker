@@ -13,6 +13,9 @@
 #include <cinternal/threading.h>
 #include <cinternal/unnamed_semaphore.h>
 #include <cinternal/logger.h>
+#include <cinternal/disable_compiler_warnings.h>
+#include <stdlib.h>
+#include <cinternal/undisable_compiler_warnings.h>
 
 
 CPPUTILS_BEGIN_C
@@ -89,7 +92,7 @@ static cinternal_thread_ret_t CPPUTILS_THR_CALL EventLoopInvokerCallbacksThread(
 
     if (!(pRetStr->instance)) {
         cinternal_unnamed_sema_post(&(pRetStr->waitGuiThreadSema));
-        cinternal_thread_exit_thread(1);
+        cinternal_thread_exit_thread((cinternal_thread_ret_t)1);
     }
 
     cinternal_unnamed_sema_post(&(pRetStr->waitGuiThreadSema));
@@ -98,7 +101,7 @@ static cinternal_thread_ret_t CPPUTILS_THR_CALL EventLoopInvokerCallbacksThread(
 
     EvLoopInvokerCleanHandleEvLoopThr(pRetStr->instance);
 
-    cinternal_thread_exit_thread(0);
+    cinternal_thread_exit_thread((cinternal_thread_ret_t)0);
 }
 
 

@@ -37,11 +37,10 @@ win32{
 }
 
 SOURCES	+= "$${eventLoopInvokerRepoRoot}/src/tests/main_event_loop_invoker_test01.c"
-SOURCES += "$${eventLoopInvokerRepoRoot}/src/core/event_loop_invoker_windows.c"
-SOURCES += "$${eventLoopInvokerRepoRoot}/src/core/event_loop_invoker_linux.c"
+SOURCES += $$files($${eventLoopInvokerRepoRoot}/src/core/*.c,true)
 SOURCES += "$${cinternalRepoRoot}/src/core/cinternal_core_logger.c"
 
 HEADERS += $$files($${eventLoopInvokerRepoRoot}/src/core/*.h,true)
 HEADERS += $$files($${eventLoopInvokerRepoRoot}/include/*.h,true)
 
-OTHER_FILES += "$${eventLoopInvokerRepoRoot}/src/core/event_loop_invoker_mac.mm"
+OTHER_FILES += $$files($${eventLoopInvokerRepoRoot}/src/core/*.mm,true)
