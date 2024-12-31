@@ -399,7 +399,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
             CInternalLogError("Select error");
             break;
         case 0:
-            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
         default:
             break;
         }  //  switch(nSelectRet){
@@ -418,7 +418,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
         return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
     }
 
-    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
 }
 
 

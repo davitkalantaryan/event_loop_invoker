@@ -18,9 +18,10 @@
 #include <cinternal/disable_compiler_warnings.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <pthread.h>
+#include <time.h>
 #include <dispatch/dispatch.h>
 #include <Foundation/Foundation.h>
+#include <CoreFoundation/CoreFoundation.h>
 #include <cinternal/undisable_compiler_warnings.h>
 
 
@@ -44,21 +45,19 @@ struct EvLoopInvokerInvokeAsyncData{
 
 struct EvLoopInvokerHandle{
     struct EvLoopInvokerHandleBase          base;
-    pthread_t                               evLoopThread;
     CFRunLoopRef                            evLoopThreaCfLoopHandle;
     CFRunLoopSourceRef                      cFsourceBlocked;
     ptrdiff_t                               inputArg;
-    dispatch_semaphore_t                    sema;
     id                                      eventMonitor;
     struct EvLoopInvokerInvokeBlockedData   blockedClbkData;
     CPPUTILS_BISTATE_FLAGS_UN(
-        shouldRun,
-        isOk
+        shouldRun
     )flags;
 };
 
 
-static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT;
+static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
+static int  EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT;
 
 
 PrvEvLoopInvokerInline int CreateEventMonitorIfNeededInline(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance){
@@ -127,7 +126,7 @@ PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoop(struct EvLoop
     }
 
     a_instance->evLoopThreaCfLoopHandle = CFRunLoopGetCurrent();
-    NSLog(@"Thread started: %@", a_instance->evLoopThreaCfLoopHandle);
+    NSLog(@"Loop handle: %@", a_instance->evLoopThreaCfLoopHandle);
     if(!(a_instance->evLoopThreaCfLoopHandle)){
         CInternalLogError("CFRunLoopGetCurrent failed");
         EventLoopInvokerCleanInstanceInEventLoop(a_instance);
@@ -149,7 +148,9 @@ PrvEvLoopInvokerInline int EventLoopInvokerInitInstanceInEventLoop(struct EvLoop
 }
 
 
-EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const void* a_inp) CPPUTILS_NOEXCEPT
+/*////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+
+EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleForCurThrEx(const void* a_inp) CPPUTILS_NOEXCEPT
 {
     int nRet;
     struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)calloc(1,sizeof(struct EvLoopInvokerHandle));
@@ -158,30 +159,14 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
         return CPPUTILS_NULL;
     }
 
-    pRetStr->sema = dispatch_semaphore_create(0);
-    if(!(pRetStr->sema)){
-        CInternalLogError("Unable to create semaphore");
-        return CPPUTILS_NULL;
-    }
-
     pRetStr->flags.wr_all = CPPUTILS_BISTATE_MAKE_ALL_BITS_FALSE;
     pRetStr->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
     pRetStr->inputArg = (ptrdiff_t)a_inp;
 
-    nRet = pthread_create(&(pRetStr->evLoopThread),CPPUTILS_NULL,&EventLoopInvokerCallbacksThread,pRetStr);
+    nRet = EventLoopInvokerInitInstanceInEventLoop(pRetStr);
     if(nRet){
-        dispatch_release(pRetStr->sema);
-        CInternalLogError("Unable create a thread");
-        return CPPUTILS_NULL;
-    }
-
-    dispatch_semaphore_wait(pRetStr->sema,DISPATCH_TIME_FOREVER);
-    dispatch_release(pRetStr->sema);
-    pRetStr->sema = (dispatch_semaphore_t)0;
-
-    if(pRetStr->flags.rd.isOk_false){
         free(pRetStr);
-        CInternalLogError("Error on event loop thread");
+        CInternalLogError("Error during initialization");
         return CPPUTILS_NULL;
     }
 
@@ -189,15 +174,29 @@ EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerCreateHandleEx(const 
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandle(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
+EVLOOPINVK_EXPORT void EvLoopInvokerCleanHandleEvLoopThr(struct EvLoopInvokerHandle* a_instance) CPPUTILS_NOEXCEPT
 {
     if(a_instance){
-        void* pThreadRet;
-        a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-        CFRunLoopStop(a_instance->evLoopThreaCfLoopHandle); // Stop the run loop
-        pthread_join(a_instance->evLoopThread,&pThreadRet);
+        EventLoopInvokerCleanInstanceInEventLoop(a_instance);
         free(a_instance);
     }
+}
+
+
+EVLOOPINVK_EXPORT void EvLoopInvokerStopLoopAnyThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
+{
+    a_instance->flags.wr.shouldRun = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
+    CFRunLoopStop(a_instance->evLoopThreaCfLoopHandle); // Stop the run loop
+}
+
+
+EVLOOPINVK_EXPORT int EvLoopInvokerLoopEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT
+{
+    if (a_durationMs < 0) {
+        EventLoopInvokerInfiniteEventLoop(a_instance);
+        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    }  //  if (a_durationMs < 0) {
+    return EvLoopInvokerLoopWithTimeoutEvLoopThr(a_instance, a_durationMs);
 }
 
 
@@ -284,52 +283,61 @@ EVLOOPINVK_EXPORT int EvLoopInvokerPtrToRequestCode(void* a_msg)
 }
 
 
-EVLOOPINVK_EXPORT void EvLoopInvokerWaitForEventsMs(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_timeMs) CPPUTILS_NOEXCEPT
+/*/////////////////////////////////////////////////////////////////////////////////*/
+
+static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT
 {
-    NSRunLoop* const runLoop = [NSRunLoop currentRunLoop];
-    CPPUTILS_STATIC_CAST(void,a_instance);
-    if(a_timeMs<0){
-        [runLoop run];
-    }
-    else{
-        const double waitTimeSec = ((double)a_timeMs)/1000.;
-        NSDate*const futureDate = [NSDate dateWithTimeIntervalSinceNow:waitTimeSec];
-        NSTimer*const timer = [NSTimer scheduledTimerWithTimeInterval:waitTimeSec
-                repeats:NO
-                block:^(NSTimer *tmr){
-                    (void)tmr;
-                }];
-        [runLoop addTimer:timer forMode:NSRunLoopCommonModes];
-        [runLoop runUntilDate:futureDate];
+    while(a_instance->flags.rd.shouldRun_true){
+        CFRunLoopRun();
     }
 }
 
 
-/*/////////////////////////////////////////////////////////////////////////////////*/
-
-
-static void* EventLoopInvokerCallbacksThread(void* a_pData) CPPUTILS_NOEXCEPT
+static int  EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_instance, int64_t a_durationMs) CPPUTILS_NOEXCEPT
 {
-    int nRet;
-    struct EvLoopInvokerHandle* const pRetStr = (struct EvLoopInvokerHandle*)a_pData;
+    time_t currentTime, startTime;
+    int64_t durationRemaining = a_durationMs;
+    CFTimeInterval timeToLoop;
+    CFRunLoopRunResult loopRes;
+    const CFAbsoluteTime distantFuture = CFAbsoluteTimeGetCurrent() + 1e10; // 10 billion seconds in the future
+    CFRunLoopTimerContext timerContext = {0, NULL, NULL, NULL, NULL};
+    CFRunLoopTimerRef timer = CFRunLoopTimerCreate(
+        kCFAllocatorDefault,         // Allocator
+        distantFuture,               // Fire date
+        0,                           // Interval (0 = one-time timer)
+        0,                           // Flags
+        0,                           // Order
+        NULL,                        // Callback function (NULL since it won't fire)
+        &timerContext                // Context
+    );
 
-    nRet = EventLoopInvokerInitInstanceInEventLoop(pRetStr);
-    if(nRet){
-        pRetStr->flags.wr.isOk = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
-        dispatch_semaphore_signal(pRetStr->sema);
-        pthread_exit((void*)((size_t)nRet));
+    // Add the timer to the run loop
+    CFRunLoopAddTimer(a_instance->evLoopThreaCfLoopHandle, timer, kCFRunLoopDefaultMode);
+
+    startTime = time(&startTime);
+
+    do {
+        timeToLoop = CPPUTILS_STATIC_CAST(CFTimeInterval,durationRemaining) / CPPUTILS_STATIC_CAST(CFTimeInterval,1000) ;
+        loopRes = CFRunLoopRunInMode(kCFRunLoopDefaultMode, timeToLoop, false);
+        switch(loopRes){
+        case kCFRunLoopRunTimedOut:
+            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
+        default:
+            break;
+        }  //  switch(loopRes){
+
+        currentTime = time(&currentTime);
+        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
+
+    } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
+
+    CFRelease(timer);
+
+    if (a_instance->flags.rd.shouldRun_false) {
+        return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
     }
 
-    pRetStr->flags.wr.isOk = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-    dispatch_semaphore_signal(pRetStr->sema);
-
-    while(pRetStr->flags.rd.shouldRun_true){
-        CFRunLoopRun();
-    }
-
-    EventLoopInvokerCleanInstanceInEventLoop(pRetStr);
-
-    pthread_exit(CPPUTILS_NULL);
+    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
 }
 
 

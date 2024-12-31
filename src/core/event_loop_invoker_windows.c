@@ -263,7 +263,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
 
         dwWaitRet = MsgWaitForMultipleObjectsEx(0, CPPUTILS_NULL, CPPUTILS_STATIC_CAST(DWORD, durationRemaining), QS_ALLINPUT, MWMO_ALERTABLE);
         if (dwWaitRet == WAIT_TIMEOUT) {
-            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+            return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
         }  //  if (dwWaitRet == WAIT_TIMEOUT) {
 
         while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -279,7 +279,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
         return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
     }
 
-    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnQuit);
+    return CPPUTILS_STATIC_CAST(int, EvLoopInvokerLoopReturnTimeout);
 }
 
 
