@@ -177,8 +177,6 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
 
     EventLoopInvokerInitInstanceInEventLoopInlineBase(&(a_instance->base));
 
-    a_instance->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_TRUE;
-
     a_instance->hInstance = GetModuleHandleA(CPPUTILS_NULL);
     if (!(a_instance->hInstance)) {
         CInternalLogError("Getting application instance failed");
@@ -229,7 +227,6 @@ static int EventLoopInvokerConfigureInstanceInEventLoop(struct EvLoopInvokerHand
         }
     }
 
-    a_instance->flags.wr.hasError = CPPUTILS_BISTATE_MAKE_BITS_FALSE;
     return 0;
 }
 
@@ -241,7 +238,7 @@ static void EventLoopInvokerInfiniteEventLoop(struct EvLoopInvokerHandle* CPPUTI
 
         CPPUTILS_TRY{
             while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
-                EventLoopInvokerHandleSingleEventInline(&msg);
+                EventLoopInvokerHandleSingleEventInline(a_instance,&msg);
             }  //  while (a_instance->flags.rd.shouldRun_true && GetMessageA(&msg, CPPUTILS_NULL, 0, 0)) {
         } CPPUTILS_CATCH() {
         }
@@ -267,7 +264,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
         }  //  if (dwWaitRet == WAIT_TIMEOUT) {
 
         while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
-            EventLoopInvokerHandleSingleEventInline(&msg);
+            EventLoopInvokerHandleSingleEventInline(a_instance,&msg);
         }  //  while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
 
         currentTime = time(&currentTime);

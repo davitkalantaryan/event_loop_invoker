@@ -24,10 +24,12 @@
 
 static void* BlockedTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg);
 static void  AsyncTestFunction(struct EvLoopInvokerHandle* CPPUTILS_ARG_NN a_invokerHandle, void* a_pArg);
+static int64_t RandInTheRangeStatic(int64_t a_min, int64_t a_max);
 
 
 int main(int a_argc, char* a_argv[])
 {
+    int64_t timeoutMs;
     int i, iterCount=3, nSleep=2000;
     const int cnMainThreadId = (int)CinternalGetCurrentTid();
     time_t currentTime;
@@ -38,16 +40,20 @@ int main(int a_argc, char* a_argv[])
     CPPUTILS_STATIC_CAST(void, a_argc);
     CPPUTILS_STATIC_CAST(void, a_argv);
 
-    invokerHandleAnyThr = EvLoopInvokerCreateThreadAndHandle();
+    currentTime = time(&currentTime);
+    srand((unsigned int)currentTime);
+
+    timeoutMs = RandInTheRangeStatic(-10000,10000);
+    fprintf(stdout, "timeoutMs=%d\n", (int)timeoutMs);
+    fflush(stdout);
+
+    invokerHandleAnyThr = EvLoopInvokerCreateThreadAndHandleTm(timeoutMs);
     if (!invokerHandleAnyThr) {
         fprintf(stderr, "Unable to create event loop invoker\n");
         return 1;
     }
     invokerHandle = EvLoopInvokerGetRawHandle(invokerHandleAnyThr);
     assert(invokerHandle);
-
-    currentTime = time(&currentTime);
-    srand((unsigned int)currentTime);
 
     if(a_argc>1){
         iterCount = atoi(a_argv[1]);
@@ -76,6 +82,13 @@ int main(int a_argc, char* a_argv[])
     EvLoopInvokerStopAndCleanHandle(invokerHandleAnyThr);
 
     return 0;
+}
+
+
+static int64_t RandInTheRangeStatic(int64_t a_min, int64_t a_max)
+{
+    const int64_t randRet = ((int64_t)(((double)rand() / (double)RAND_MAX) * ((double)(a_max - a_min)))) + a_min;
+    return randRet;
 }
 
 
