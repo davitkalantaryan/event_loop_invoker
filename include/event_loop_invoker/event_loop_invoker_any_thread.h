@@ -11,6 +11,7 @@
 
 #include <event_loop_invoker/export_symbols.h>
 #include <event_loop_invoker/event_loop_invoker.h>
+#include <stdbool.h>
 
 
 CPPUTILS_BEGIN_C
@@ -23,6 +24,8 @@ struct EvLoopInvokerHandleAnyThread;
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandleAnyThread* EvLoopInvokerCreateThreadAndHandleEx(const void* a_inp, int64_t a_durationMs) CPPUTILS_NOEXCEPT;
 EVLOOPINVK_EXPORT void  EvLoopInvokerStopAndCleanHandle(struct EvLoopInvokerHandleAnyThread* a_instance) CPPUTILS_NOEXCEPT;
 EVLOOPINVK_EXPORT struct EvLoopInvokerHandle* EvLoopInvokerGetRawHandle(struct EvLoopInvokerHandleAnyThread* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
+EVLOOPINVK_EXPORT bool EvLoopInvokerIsInLoop(struct EvLoopInvokerHandleAnyThread* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
+EVLOOPINVK_EXPORT enum EvLoopInvokerLoopReturn EvLoopInvokerLoopReturn(struct EvLoopInvokerHandleAnyThread* CPPUTILS_ARG_NN a_instance) CPPUTILS_NOEXCEPT;
 
 
 CPPUTILS_END_C

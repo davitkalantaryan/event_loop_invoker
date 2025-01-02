@@ -26,8 +26,10 @@ typedef bool (*EvLoopInvokerTypeEventMonitor)(struct EvLoopInvokerHandle* CPPUTI
 // ret<0 is error
 enum EvLoopInvokerLoopReturn {
     EvLoopInvokerLoopReturnNone = 0,
-    EvLoopInvokerLoopReturnTimeout = 1,
-    EvLoopInvokerLoopReturnQuit = 2
+    EvLoopInvokerLoopReturnError = 1,
+    EvLoopInvokerLoopReturnInLoop = 2,
+    EvLoopInvokerLoopReturnTimeout = 4,
+    EvLoopInvokerLoopReturnQuit = 8
 };
 
 

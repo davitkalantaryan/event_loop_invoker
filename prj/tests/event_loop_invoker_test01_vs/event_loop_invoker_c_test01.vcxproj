@@ -297,6 +297,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\src\core\event_loop_invoker_any_thread.c" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker_any_thread.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
