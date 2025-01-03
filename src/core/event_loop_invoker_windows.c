@@ -268,7 +268,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
         }  //  while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
 
         currentTime = time(&currentTime);
-        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
+        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, 1000 * (currentTime - startTime));
 
     } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
 

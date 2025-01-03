@@ -410,7 +410,7 @@ static int EvLoopInvokerLoopWithTimeoutEvLoopThr(struct EvLoopInvokerHandle* CPP
         }  //  while ((event = xcb_poll_for_event(a_instance->connection)) != CPPUTILS_NULL) {
 
         currentTime = time(&currentTime);
-        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, currentTime-startTime);
+        durationRemaining = a_durationMs - CPPUTILS_STATIC_CAST(int64_t, 1000 * (currentTime - startTime));
 
     } while ((durationRemaining >= 0)&&(a_instance->flags.rd.shouldRun_true));
 
