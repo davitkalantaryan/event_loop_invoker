@@ -1,0 +1,5 @@
+
+eventLoopInvokerRepoRoot
+$(MSBuildThisFileDirectory)..\..\..
+$(EventLoopInvokerVirtProjectDir)..\..\..\sys\win_$(PlatformTarget)\$(Configuration)\test\
+$(EventLoopInvokerVirtProjectDir)..\..\..\sys\win_$(PlatformTarget)\$(Configuration)\.other\objects\$(ProjectName)\

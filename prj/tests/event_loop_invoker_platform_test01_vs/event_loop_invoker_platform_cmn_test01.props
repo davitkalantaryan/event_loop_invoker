@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <ClCompile Include="..\..\..\contrib\cinternal\src\core\cinternal_core_logger.c" />
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_linux.c" />
+    <ClCompile Include="..\..\..\src\core\event_loop_invoker_windows.c" />
+    <ClCompile Include="..\..\..\src\tests\main_event_loop_invoker_platform_test01.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker.h" />
+    <ClInclude Include="..\..\..\include\event_loop_invoker\event_loop_invoker_platform.h" />
+    <ClInclude Include="..\..\..\include\event_loop_invoker\export_symbols.h" />
+  </ItemGroup>
+</Project>
